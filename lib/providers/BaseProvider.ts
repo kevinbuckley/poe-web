@@ -5,4 +5,5 @@ export abstract class BaseProvider {
     this.apiKey = apiKey;
     this.defaultModel = defaultModel;
   }
+  abstract chat(messages: { role: 'system' | 'user' | 'assistant'; content: string }[], model?: string): Promise<string>;
 }

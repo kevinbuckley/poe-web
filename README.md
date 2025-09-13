@@ -14,6 +14,13 @@ pnpm dev
 bun dev
 ```
 
+```
+running tests against real apis
+pnpm test:e2e --project=chromium-real
+pnpm test:e2e --project=chromium-real --ui # to run and see ui
+
+```
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.

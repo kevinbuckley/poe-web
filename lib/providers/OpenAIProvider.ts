@@ -11,7 +11,6 @@ export class OpenAIProvider extends BaseProvider {
     const res = await this.client.chat.completions.create({
       model: model || this.defaultModel,
       messages,
-      temperature: 0.7
     });
     return res.choices[0]?.message?.content || '';
   }
