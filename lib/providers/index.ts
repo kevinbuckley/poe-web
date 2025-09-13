@@ -4,7 +4,7 @@ import { BaseProvider } from './BaseProvider';
 
 export function createProvider(): BaseProvider {
   const useMock = process.env.USE_MOCK_PROVIDER === '1' || process.env.USE_MOCK_PROVIDER === 'true';
-  const model = process.env.DEFAULT_MODEL || 'gpt-4o-mini';
+  const model = process.env.DEFAULT_MODEL || 'gpt-4.1-nano';
   if (useMock) {
     return new MockProvider('mock', model);
   }

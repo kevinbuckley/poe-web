@@ -5,7 +5,7 @@ import { createProvider } from '../../../../lib/providers';
 
 export async function POST(req: NextRequest){
   const body = await req.json().catch(()=>({}));
-  const defaultModel = process.env.DEFAULT_MODEL || 'gpt-4o-mini';
+  const defaultModel = process.env.DEFAULT_MODEL || 'gpt-4.1-nano';
   const experts = body.experts || [
     { id:'expert-1', name:'Backend Engineer', provider:'openai', model: defaultModel, persona:'Backend architecture and code quality.' },
     { id:'expert-2', name:'Frontend Architect', provider:'openai', model: defaultModel, persona:'UX, accessibility, and performance in web UIs.' },

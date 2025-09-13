@@ -11,6 +11,8 @@ export async function GET(req: NextRequest){
   const stream = new ReadableStream<Uint8Array>({
     start(controller){
       let closed = false;
+      // send padding prelude to defeat proxy buffering and flush immediately
+      try { controller.enqueue(encoder.encode(`: prelude ${' '.repeat(8192)}\n\n`)); } catch {}
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type:'init', history: session.history })}\n\n`));
       const off = onSessionEvent(sessionId, (data)=>{
         if (closed) return;
@@ -23,5 +25,5 @@ export async function GET(req: NextRequest){
     },
     cancel(){ (this as any)._cleanup?.(); }
   });
-  return new Response(stream, { headers: { 'Content-Type':'text/event-stream', 'Cache-Control':'no-cache', Connection:'keep-alive' } });
+  return new Response(stream, { headers: { 'Content-Type':'text/event-stream; charset=utf-8', 'Cache-Control':'no-cache, no-transform', Connection:'keep-alive', 'Keep-Alive':'timeout=60', 'X-Accel-Buffering':'no' } });
 }

@@ -16,7 +16,27 @@ export default function SessionPage(){
   useEffect(()=>{ if(!sessionId) return; const ev=new EventSource('/api/stream?sessionId='+sessionId); ev.onmessage=(e)=>{ const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string };
     if(data.type==='init'){ setHistory(data.history||[]);} 
     if(data.type==='message' && data.message){ setHistory(h=>[...h, data.message!]); }
-    if(data.type==='message:start' && data.message){ const msg = { ...data.message, turnId: data.turnId, replyToName: data.replyToName, replyToQuote: data.replyToQuote, content: data.message.content || ' .' } as Message; setHistory(h=>[...h, msg]); }
+    if(data.type==='message:prestart' && data.message){ const msg = { ...data.message, content: ' .' } as Message; setHistory(h=>[...h, msg]); }
+    if(data.type==='message:start' && data.message && data.message.name){
+      setHistory(h=>{
+        const copy=[...h];
+        let replaced=false;
+        for(let i=copy.length-1;i>=0;i--){
+          const m=copy[i];
+          if(m.role==='expert' && m.name===data.message!.name && !m.turnId && /^\s*\.+$/.test(m.content||'')){
+            copy[i] = { ...(data.message as Message), turnId: data.turnId, replyToName: data.replyToName, replyToQuote: data.replyToQuote, content: ' .' };
+            replaced=true;
+            break;
+          }
+        }
+        if(!replaced){
+          const base = (data.message || { role:'expert', name: '', content:'' }) as Message;
+          const msg = { ...base, turnId: data.turnId, replyToName: data.replyToName, replyToQuote: data.replyToQuote, content: base.content || ' .' } as Message;
+          copy.push(msg);
+        }
+        return copy;
+      });
+    }
     if(data.type==='message:delta' && data.role && data.name && data.delta){ setHistory(h=>{ const copy=[...h]; for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.role && m.name===data.name && (!data.turnId || m.turnId===data.turnId)){
           // advance thinking animation if still placeholder
           if(/^\s*\.+$/.test(m.content||'')){
@@ -30,7 +50,9 @@ export default function SessionPage(){
           break;
         } }
         return copy; }); }
-    if(data.type==='message:end' && data.message){ setHistory(h=>{ const copy=[...h]; const last = copy[copy.length-1]; copy[copy.length-1] = { ...(data.message as Message), turnId: data.turnId || last?.turnId, replyToName: (data.replyToName || last?.replyToName), replyToQuote: (data.replyToQuote || last?.replyToQuote) }; return copy; }); }
+    if(data.type==='message:end' && data.message){ setHistory(h=>{ const copy=[...h];
+        for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.message!.role && m.name===data.message!.name && (!data.turnId || m.turnId===data.turnId)){ copy[i] = { ...(data.message as Message), turnId: data.turnId || m.turnId, replyToName: data.replyToName || m.replyToName, replyToQuote: data.replyToQuote || m.replyToQuote }; break; } }
+        return copy; }); }
   }; ev.onerror=()=>{ ev.close(); setTimeout(()=>location.reload(),1000); }; return ()=>ev.close(); },[sessionId]);
 
   // Animate thinking dots for any message that is still placeholder (dot-only)
@@ -62,7 +84,7 @@ export default function SessionPage(){
       const j = ct.includes('application/json') ? await r.json() : { text: await r.text(), history: [] };
       if (j && Array.isArray(j.history)) setHistory(j.history as Message[]);
       else if (j && typeof j.text==='string') setHistory(h=>[...h,{role:'assistant',content:String(j.text)}]);
-    } catch(e){ setHistory(h=>[...h,{role:'system',content:'Network error. Please try again.'}]); }
+    } catch{ setHistory(h=>[...h,{role:'system',content:'Network error. Please try again.'}]); }
     finally { if(inputRef.current) inputRef.current.value=''; }
   }
   function renderContentHTML(text: string){ return DOMPurify.sanitize(String(marked.parse(text) || '')); }

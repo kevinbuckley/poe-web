@@ -16,8 +16,7 @@ export class AgenticLoop {
       const user = this.buildUserMessage(expert.name, prior?.name, priorSnippet, userMessage);
       const turnId = this.generateTurnId();
       this.emitStart(expert.name, prior?.name, priorSnippet, turnId);
-      const expertReply = await this.safeChat(system, user, expert.model, expert.name);
-      const content = await this.streamReply(expert.name, expertReply, prior?.name, priorSnippet, turnId);
+      const content = await this.streamFromProvider(expert.name, system, user, expert.model, prior?.name, priorSnippet, turnId);
       this.pushFinal(expert.name, content, prior?.name, priorSnippet, turnId);
       panelReplies.push({ name: expert.name, content });
     }
@@ -37,8 +36,8 @@ export class AgenticLoop {
   private buildUserMessage(expertName: string, priorName: string | undefined, priorSnippet: string | undefined, userMessage?: string){
     const base = userMessage || 'Continue.';
     const content = priorSnippet
-      ? `Build directly on ${priorName}'s points: "${priorSnippet}". Do ALL of the following: (1) explicitly acknowledge 1-2 specific points from ${priorName}, (2) add 2-3 non-overlapping, concrete points from a ${expertName} perspective with specifics (names, settings, trade-offs), (3) note any disagreement concisely if applicable, (4) propose the next concrete step. Avoid repeating prior text verbatim. Keep to <=4 sentences. The user's topic is: ${base}`
-      : `Kick off with a crisp plan from a ${expertName} perspective. Provide 2-3 concrete, actionable points (names, settings, trade-offs), and propose the next step. Keep to <=4 sentences. The user's topic is: ${base}`;
+      ? `Build on ${priorName}: "${priorSnippet}". In <=4 short sentences: (1) acknowledge 1-2 specific points, (2) add 2-3 concrete, non-overlapping points from a ${expertName} view with specifics, (3) optionally note disagreements, (4) propose the next step. Topic: ${base}`
+      : `From a ${expertName} view, give a crisp plan in <=4 short sentences: 2-3 concrete, actionable points with specifics and the next step. Topic: ${base}`;
     return { role: 'user' as const, content };
   }
 
@@ -56,15 +55,31 @@ export class AgenticLoop {
     catch(e: any){ return `(${expertName} encountered an error: ${e?.message || 'unknown error'})`; }
   }
 
-  private async streamReply(expertName: string, fullText: string, replyToName?: string, replyToQuote?: string, turnId?: string){
-    const chunks = fullText.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 4);
+  private async streamFromProvider(expertName: string, system: {role:'system'; content:string}, user:{role:'user'; content:string}, model: string, replyToName?: string, replyToQuote?: string, turnId?: string){
     let assembled = '';
-    for (const ch of chunks){
-      assembled += (assembled ? ' ' : '') + ch;
-      emitSessionEvent(this.session.id, { type: 'message:delta', role: 'expert', name: expertName, delta: ch, replyToName, replyToQuote, turnId });
-      await new Promise(r=>setTimeout(r, 40));
+    try{
+      // Allow the event loop to flush the 'message:start' SSE before hitting the provider
+      await Promise.resolve();
+      // TEMP: log full prompt used
+      try { console.info('[prompt]', JSON.stringify({ expertName, model, messages: [system, user] })); } catch {}
+      const stream = this.provider.chatStream([system, user], model);
+      for await (const delta of stream){
+        assembled += delta;
+        emitSessionEvent(this.session.id, { type: 'message:delta', role: 'expert', name: expertName, delta, replyToName, replyToQuote, turnId });
+      }
+    } catch (e:any){
+      // fallback to non-streaming
+      const full = await this.safeChat(system, user, model, expertName);
+      const chunks = full.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 4);
+      for (const ch of chunks){
+        assembled += (assembled ? ' ' : '') + ch;
+        emitSessionEvent(this.session.id, { type: 'message:delta', role: 'expert', name: expertName, delta: ch, replyToName, replyToQuote, turnId });
+        await new Promise(r=>setTimeout(r, 30));
+      }
     }
-    return assembled;
+    // cap to 4 sentences for final
+    const final = assembled.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0,4).join(' ');
+    return final;
   }
 
   private pushFinal(expertName: string, content: string, replyToName?: string, replyToQuote?: string, turnId?: string){

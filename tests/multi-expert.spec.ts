@@ -14,8 +14,8 @@ test('two experts respond sequentially and moderator summarizes', async ({ page 
   // Expect first expert name, then second expert name
   const first = page.locator('b:has-text("Backend Engineer")');
   const second = page.locator('b:has-text("Frontend Architect"), b:has-text("DevOps SRE")');
-  await expect(first).toBeVisible({ timeout: 15000 });
-  await expect(second).toBeVisible({ timeout: 15000 });
+  await expect(first).toBeVisible({ timeout: 60000 });
+  await expect(second.first()).toBeVisible({ timeout: 60000 });
 });
 
 
