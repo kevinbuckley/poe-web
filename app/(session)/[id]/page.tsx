@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useRouter, useParams } from 'next/navigation';
 
-type Message = { role:'user'|'assistant'|'system'|'expert'|'moderator'; content:string; name?:string; replyToName?: string; replyToQuote?: string };
+type Message = { role:'user'|'assistant'|'system'|'expert'|'moderator'; content:string; name?:string; replyToName?: string; replyToQuote?: string; turnId?: string };
 
 export default function SessionPage(){
   const router=useRouter();
@@ -13,13 +13,45 @@ export default function SessionPage(){
   const [history,setHistory]=useState<Message[]>([]);
   const inputRef=useRef<HTMLInputElement>(null);
   useEffect(()=>{ if (sessionId) localStorage.setItem('poe.sessionId',sessionId); else { const sid=localStorage.getItem('poe.sessionId'); if (sid) router.replace('/'+sid); } },[sessionId, router]);
-  useEffect(()=>{ if(!sessionId) return; const ev=new EventSource('/api/stream?sessionId='+sessionId); ev.onmessage=(e)=>{ const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string };
+  useEffect(()=>{ if(!sessionId) return; const ev=new EventSource('/api/stream?sessionId='+sessionId); ev.onmessage=(e)=>{ const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string };
     if(data.type==='init'){ setHistory(data.history||[]);} 
     if(data.type==='message' && data.message){ setHistory(h=>[...h, data.message!]); }
-    if(data.type==='message:start' && data.message){ const msg = { ...data.message, replyToName: data.replyToName, replyToQuote: data.replyToQuote, content: data.message.content || '*thinking…*' } as Message; setHistory(h=>[...h, msg]); }
-    if(data.type==='message:delta' && data.role && data.name && data.delta){ setHistory(h=>{ const copy=[...h]; for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.role && m.name===data.name){ const base=(m.content||'').replace(/^\*thinking…\*$/,''); copy[i]={...m, content:(base?base+' ':'') + data.delta}; break; } } return copy; }); }
-    if(data.type==='message:end' && data.message){ setHistory(h=>{ const copy=[...h]; const last = copy[copy.length-1]; copy[copy.length-1] = { ...(data.message as Message), replyToName: (data.replyToName || last?.replyToName), replyToQuote: (data.replyToQuote || last?.replyToQuote) }; return copy; }); }
+    if(data.type==='message:start' && data.message){ const msg = { ...data.message, turnId: data.turnId, replyToName: data.replyToName, replyToQuote: data.replyToQuote, content: data.message.content || ' .' } as Message; setHistory(h=>[...h, msg]); }
+    if(data.type==='message:delta' && data.role && data.name && data.delta){ setHistory(h=>{ const copy=[...h]; for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.role && m.name===data.name && (!data.turnId || m.turnId===data.turnId)){
+          // advance thinking animation if still placeholder
+          if(/^\s*\.+$/.test(m.content||'')){
+            const dots=(m.content||'').length % 4; // 1..3 cycle, 0 -> 4
+            const nextDots = '.'.repeat(dots===3?4:dots+1);
+            copy[i] = { ...m, content: ' ' + nextDots };
+          } else {
+            const base=(m.content||'').replace(/^\s*\.+$/,'');
+            copy[i]={...m, content:(base?base+' ':'') + data.delta};
+          }
+          break;
+        } }
+        return copy; }); }
+    if(data.type==='message:end' && data.message){ setHistory(h=>{ const copy=[...h]; const last = copy[copy.length-1]; copy[copy.length-1] = { ...(data.message as Message), turnId: data.turnId || last?.turnId, replyToName: (data.replyToName || last?.replyToName), replyToQuote: (data.replyToQuote || last?.replyToQuote) }; return copy; }); }
   }; ev.onerror=()=>{ ev.close(); setTimeout(()=>location.reload(),1000); }; return ()=>ev.close(); },[sessionId]);
+
+  // Animate thinking dots for any message that is still placeholder (dot-only)
+  useEffect(()=>{
+    const id=setInterval(()=>{
+      setHistory(h=>{
+        let changed=false;
+        const next=h.map(m=>{
+          if(m.role==='expert' && /^\s*\.+$/.test(m.content||'')){
+            const dots=(m.content||'').trim().length; // 1..4
+            const nextDots = '.'.repeat(dots===4?1:dots+1);
+            changed=true;
+            return { ...m, content: ' ' + nextDots };
+          }
+          return m;
+        });
+        return changed ? next : h;
+      });
+    }, 350);
+    return ()=>clearInterval(id);
+  },[]);
   async function send(){
     const content=inputRef.current?.value||'';
     if(!content) return;
@@ -34,4 +66,4 @@ export default function SessionPage(){
     finally { if(inputRef.current) inputRef.current.value=''; }
   }
   function renderContentHTML(text: string){ return DOMPurify.sanitize(String(marked.parse(text) || '')); }
-  return (<main style={{padding:20}}><h2>Session {sessionId}</h2><div style={{border:'1px solid #ddd',padding:10,minHeight:200}}>{history.map((m,i)=>(<div key={i}><b>{m.name || m.role}</b>: <span dangerouslySetInnerHTML={{ __html: renderContentHTML(m.content) }} /></div>))}</div><div style={{marginTop:10}}><input ref={inputRef} placeholder='Say something' onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } }} /><button onClick={send}>Send</button></div></main>); }
+  return (<main style={{padding:20}}><h2>Session {sessionId}</h2><div style={{border:'1px solid #ddd',padding:10,minHeight:200}}>{history.map((m,i)=>(<div key={i}><b>{m.name || m.role}</b>: <span dangerouslySetInnerHTML={{ __html: renderContentHTML(m.role==='expert' && /^\s*\.+$/.test(m.content||'') ? (`*thinking ${m.content.trim()}*`) : m.content) }} /></div>))}</div><div style={{marginTop:10}}><input ref={inputRef} placeholder='Say something' onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } }} /><button onClick={send}>Send</button></div></main>); }
