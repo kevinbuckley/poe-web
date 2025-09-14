@@ -23,7 +23,7 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] }
     },
-    {
+    ({
       name: 'chromium-real',
       use: { ...devices['Desktop Chrome'] },
       grep: /@real/,
@@ -35,7 +35,7 @@ export default defineConfig({
         reuseExistingServer: false,
         env: { USE_MOCK_PROVIDER: '0', OPENAI_API_KEY: process.env.OPENAI_API_KEY || '' }
       }
-    }
+    } as any)
   ]
 });
 

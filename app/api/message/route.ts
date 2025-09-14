@@ -17,13 +17,14 @@ export async function POST(req: NextRequest){
       emitSessionEvent(session.id, { type: 'message:prestart', message: { role: 'expert', name: firstExpert.name, content: '' } });
     }
     // Fire-and-forget the step to enable immediate streaming via SSE
-    loop.step(body.content).catch((e: any)=>{
-      const msg = e?.message || 'Unknown error';
+    loop.step(body.content).catch((e: unknown)=>{
+      const msg = e instanceof Error ? e.message : 'Unknown error';
       emitSessionEvent(session.id, { type: 'message', message: { role: 'system', content: `Error: ${msg}` } });
     });
     // Respond immediately; UI will update via SSE
     return Response.json({ ok: true });
-  } catch (e: any){
-    return Response.json({ error: e?.message || 'Unknown error' }, { status: 500 });
+  } catch (e: unknown){
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    return Response.json({ error: msg }, { status: 500 });
   }
 }

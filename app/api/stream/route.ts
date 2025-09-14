@@ -20,10 +20,11 @@ export async function GET(req: NextRequest){
       });
       // keepalive ping every 15s
       const ping = setInterval(()=> { if (!closed) { try { controller.enqueue(encoder.encode(`: ping\n\n`)); } catch {} } }, 15000);
-      // expose cleanup via closure flags
-      (controller as any)._cleanup = () => { if (!closed){ closed = true; clearInterval(ping); off(); } };
+      // expose cleanup via closure flags without any-cast
+      const cleanup = () => { if (!closed){ closed = true; clearInterval(ping); off(); } };
+      Object.defineProperty(controller, '_cleanup', { value: cleanup });
     },
-    cancel(){ (this as any)._cleanup?.(); }
+    cancel(){ (this as { _cleanup?: () => void })._cleanup?.(); }
   });
   return new Response(stream, { headers: { 'Content-Type':'text/event-stream; charset=utf-8', 'Cache-Control':'no-cache, no-transform', Connection:'keep-alive', 'Keep-Alive':'timeout=60', 'X-Accel-Buffering':'no' } });
 }

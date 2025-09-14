@@ -7,8 +7,8 @@ test('@real multi experts respond sequentially (real OpenAI)', async ({ page }) 
   await page.goto('/');
   const tStartStart = Date.now();
   const [startResp] = await Promise.all([
-    page.waitForResponse(r => r.url().includes('/api/session/start') && r.request().method() === 'POST'),
-    page.click('button:has-text("Start")')
+    page.waitForResponse(r => r.url().includes('/api/session/start') && r.request().method() === 'GET'),
+    page.click('a:has-text("Start Tech")')
   ]);
   const startMs = Date.now() - tStartStart;
   console.log(`[timing] session/start: ${startMs}ms status=${startResp.status()}`);
@@ -26,10 +26,10 @@ test('@real multi experts respond sequentially (real OpenAI)', async ({ page }) 
 
   // Expect multiple expert names to appear over time
   const tFirstVisible = Date.now();
-  await expect(page.locator('b:has-text("Backend Engineer")')).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('b:has-text("Ada (inspired by Lovelace)")')).toBeVisible({ timeout: 60_000 });
   console.log(`[timing] first expert visible: ${Date.now() - tFirstVisible}ms`);
   const tSecondVisible = Date.now();
-  const secondAny = page.locator('b:has-text("Frontend Architect")').or(page.locator('b:has-text("DevOps SRE")'));
+  const secondAny = page.locator('b:has-text("Linus (inspired by Torvalds)")').or(page.locator('b:has-text("Grace (inspired by Hopper)")'));
   await expect(secondAny.first()).toBeVisible({ timeout: 60_000 });
   console.log(`[timing] second expert visible: ${Date.now() - tSecondVisible}ms`);
 });

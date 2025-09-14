@@ -1,4 +1,5 @@
 import { ConversationSession } from '../types';
+import { randomUUID } from 'node:crypto';
 import { BaseProvider } from '../providers';
 import { emitSessionEvent } from '../store/sessions';
 
@@ -30,19 +31,19 @@ export class AgenticLoop {
   }
 
   private buildSystemMessage(name: string, persona: string){
-    return { role: 'system' as const, content: `${name}: ${persona}` };
+    return { role: 'system' as const, content: `${name}: ${persona}\nTone & style: Be friendly and human. Speak like you’re talking to a person. Use first person ("I"), short clear sentences, and concrete examples. Avoid bullet lists unless the user asks. Keep it warm, concise, and non-robotic.` };
   }
 
   private buildUserMessage(expertName: string, priorName: string | undefined, priorSnippet: string | undefined, userMessage?: string){
     const base = userMessage || 'Continue.';
     const content = priorSnippet
-      ? `Build on ${priorName}: "${priorSnippet}". In <=4 short sentences: (1) acknowledge 1-2 specific points, (2) add 2-3 concrete, non-overlapping points from a ${expertName} view with specifics, (3) optionally note disagreements, (4) propose the next step. Topic: ${base}`
-      : `From a ${expertName} view, give a crisp plan in <=4 short sentences: 2-3 concrete, actionable points with specifics and the next step. Topic: ${base}`;
+      ? `Build on ${priorName}: "${priorSnippet}". In <=4 short sentences: (1) acknowledge 1-2 specific points, (2) add 2-3 concrete, non-overlapping points from a ${expertName} view with specifics, (3) optionally note disagreements, (4) propose the next step. Topic: ${base}. Speak conversationally in first person; avoid lists unless asked.`
+      : `From a ${expertName} view, give a crisp plan in <=4 short sentences: 2-3 concrete, actionable points with specifics and the next step. Topic: ${base}. Speak conversationally in first person; avoid lists unless asked.`;
     return { role: 'user' as const, content };
   }
 
   private generateTurnId(){
-    return (globalThis as any).crypto?.randomUUID ? (globalThis as any).crypto.randomUUID() : Math.random().toString(36).slice(2);
+    try { return randomUUID(); } catch { return Math.random().toString(36).slice(2); }
   }
 
   private emitStart(expertName: string, replyToName?: string, replyToQuote?: string, turnId?: string){
@@ -52,7 +53,7 @@ export class AgenticLoop {
 
   private async safeChat(system: {role:'system'; content:string}, user:{role:'user'; content:string}, model: string, expertName: string){
     try{ return await this.provider.chat([system, user], model); }
-    catch(e: any){ return `(${expertName} encountered an error: ${e?.message || 'unknown error'})`; }
+    catch(e: unknown){ const msg = e instanceof Error ? e.message : 'unknown error'; return `(${expertName} encountered an error: ${msg})`; }
   }
 
   private async streamFromProvider(expertName: string, system: {role:'system'; content:string}, user:{role:'user'; content:string}, model: string, replyToName?: string, replyToQuote?: string, turnId?: string){
@@ -67,7 +68,7 @@ export class AgenticLoop {
         assembled += delta;
         emitSessionEvent(this.session.id, { type: 'message:delta', role: 'expert', name: expertName, delta, replyToName, replyToQuote, turnId });
       }
-    } catch (e:any){
+    } catch {
       // fallback to non-streaming
       const full = await this.safeChat(system, user, model, expertName);
       const chunks = full.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, 4);

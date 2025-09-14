@@ -77,6 +77,8 @@ export default function SessionPage(){
   async function send(){
     const content=inputRef.current?.value||'';
     if(!content) return;
+    // Optimistically render the user's message in the chat list
+    setHistory(h=>[...h,{ role:'user', content } as Message]);
     try{
       const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId, content})});
       const ct=r.headers.get('content-type')||'';
@@ -88,4 +90,47 @@ export default function SessionPage(){
     finally { if(inputRef.current) inputRef.current.value=''; }
   }
   function renderContentHTML(text: string){ return DOMPurify.sanitize(String(marked.parse(text) || '')); }
-  return (<main style={{padding:20}}><h2>Session {sessionId}</h2><div style={{border:'1px solid #ddd',padding:10,minHeight:200}}>{history.map((m,i)=>(<div key={i}><b>{m.name || m.role}</b>: <span dangerouslySetInnerHTML={{ __html: renderContentHTML(m.role==='expert' && /^\s*\.+$/.test(m.content||'') ? (`*thinking ${m.content.trim()}*`) : m.content) }} /></div>))}</div><div style={{marginTop:10}}><input ref={inputRef} placeholder='Say something' onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } }} /><button onClick={send}>Send</button></div></main>); }
+  return (
+    <main className="min-h-screen" style={{ backgroundColor:'#f6f7f3', backgroundImage:'radial-gradient(#dfe3e0 0.6px, transparent 0.6px)', backgroundSize:'18px 18px', backgroundPosition:'-10px -10px' }}>
+      <div className="w-full px-6 py-16 flex flex-col items-center">
+        <header className="mb-10 text-center p-6 pb-10">
+          <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight text-slate-900">Panel discussion</h1>
+          <h2 className="text-slate-600 italic md:text-[24px] md:text-base max-w-[28ch] mx-auto">your experts will speak in turn</h2>
+        </header>
+
+        <div className="w-full max-w-4xl pb-40">
+          {history.map((m,i)=> {
+            const isUser = m.role === 'user';
+            const label = m.name || (m.role.charAt(0).toUpperCase() + m.role.slice(1));
+            const isThinking = m.role==='expert' && /^\s*\.+$/.test(m.content||'');
+            return (
+              <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'} my-3`}> 
+                <div className={`max-w-[75%] ${isUser ? 'bg-slate-900 text-white' : 'bg-white/90 text-slate-900'} rounded-2xl px-4 py-3 shadow-sm border ${isUser ? 'border-slate-900' : 'border-slate-200'} relative`}>
+                  {!isUser && (
+                    <div className="mb-1 text-[12px] font-medium text-slate-500">{label}</div>
+                  )}
+                  <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : ''}`}>
+                    <span dangerouslySetInnerHTML={{ __html: renderContentHTML(isThinking ? (`*thinking ${(m.content||'').trim()}*`) : (m.content||'')) }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-32px)] max-w-3xl">
+          <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-4 py-3 shadow-[0_8px_24px_rgba(2,6,23,0.12)] flex items-center gap-3">
+            <input
+              ref={inputRef}
+              placeholder="Say something"
+              onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } }}
+              className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+            <span className="text-xs text-slate-500 hidden sm:inline">Press Enter to send</span>
+            <button onClick={send} className="inline-flex items-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-medium shadow-sm hover:opacity-90 active:opacity-80 transition">Send</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

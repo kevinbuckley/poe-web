@@ -6,15 +6,80 @@ import { createProvider } from '../../../../lib/providers';
 export async function POST(req: NextRequest){
   const body = await req.json().catch(()=>({}));
   const defaultModel = process.env.DEFAULT_MODEL || 'gpt-4.1-nano';
-  const experts = body.experts || [
-    { id:'expert-1', name:'Backend Engineer', provider:'openai', model: defaultModel, persona:'Backend architecture and code quality.' },
-    { id:'expert-2', name:'Frontend Architect', provider:'openai', model: defaultModel, persona:'UX, accessibility, and performance in web UIs.' },
-    { id:'expert-3', name:'DevOps SRE', provider:'openai', model: defaultModel, persona:'Deployments, reliability, and cost-aware scaling.' }
+  const panel = (body.panel as string | undefined) || 'tech';
 
-  ];
-  const moderator = body.moderator || { id:'moderator', name:'Moderator', provider:'openai', model:'gpt-4o-mini', systemPrompt:'Guide towards productive outcomes.' };
+  const presets: Record<string, { title: string; experts: { id:string; name:string; provider:'openai'; model:string; persona:string }[] }> = {
+    tech: {
+      title: 'Tech Panel',
+      experts: [
+        { id:'expert-1', name:'Ada (inspired by Lovelace)', provider:'openai', model: defaultModel, persona:'Analytical backend design, algorithmic rigor, type systems, and code quality.' },
+        { id:'expert-2', name:'Linus (inspired by Torvalds)', provider:'openai', model: defaultModel, persona:'Systems engineering, performance, scalability, pragmatic trade-offs, and kernel-level thinking.' },
+        { id:'expert-3', name:'Grace (inspired by Hopper)', provider:'openai', model: defaultModel, persona:'Compilers, correctness, debugging, and making complex systems understandable.' },
+      ],
+    },
+    philosophy: {
+      title: 'Philosophy Panel',
+      experts: [
+        { id:'expert-1', name:'Aristotle', provider:'openai', model: defaultModel, persona:'Practical wisdom, virtue ethics, teleology, and clear categorization.' },
+        { id:'expert-2', name:'Nietzsche', provider:'openai', model: defaultModel, persona:'Challenge assumptions, will to power, creative re-evaluation of values.' },
+        { id:'expert-3', name:'Laozi', provider:'openai', model: defaultModel, persona:'Non-forcing, simplicity, balance, and flow in decision-making.' },
+      ],
+    },
+    finance: {
+      title: 'Finance Panel',
+      experts: [
+        { id:'expert-1', name:'Warren (inspired by Buffett)', provider:'openai', model: defaultModel, persona:'Value investing, moats, margin of safety, and long-term discipline.' },
+        { id:'expert-2', name:'Ray (inspired by Dalio)', provider:'openai', model: defaultModel, persona:'Principles, macro cycles, risk parity, and systematic decision rules.' },
+        { id:'expert-3', name:'Cathie (inspired by Wood)', provider:'openai', model: defaultModel, persona:'Disruptive innovation, thematic growth, risk-taking with conviction.' },
+      ],
+    },
+  };
+
+  const chosen = presets[panel] || presets.tech;
+  const experts = Array.isArray(body.experts) && body.experts.length ? body.experts : chosen.experts;
+  const moderator = body.moderator || { id:'moderator', name:'Moderator', provider:'openai', model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' };
   const session = createSession({ experts, moderator, autoDiscuss: !!body.autoDiscuss });
+  session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
   // quick provider instantiation check
   createProvider();
   return Response.json({ sessionId: session.id });
+}
+
+export async function GET(req: NextRequest){
+  const { searchParams } = new URL(req.url);
+  const panel = (searchParams.get('panel') as string | null) || 'tech';
+  const defaultModel = process.env.DEFAULT_MODEL || 'gpt-4.1-nano';
+
+  const presets: Record<string, { title: string; experts: { id:string; name:string; provider:'openai'; model:string; persona:string }[] }> = {
+    tech: {
+      title: 'Tech Panel',
+      experts: [
+        { id:'expert-1', name:'Ada (inspired by Lovelace)', provider:'openai', model: defaultModel, persona:'Analytical backend design, algorithmic rigor, type systems, and code quality.' },
+        { id:'expert-2', name:'Linus (inspired by Torvalds)', provider:'openai', model: defaultModel, persona:'Systems engineering, performance, scalability, pragmatic trade-offs, and kernel-level thinking.' },
+        { id:'expert-3', name:'Grace (inspired by Hopper)', provider:'openai', model: defaultModel, persona:'Compilers, correctness, debugging, and making complex systems understandable.' },
+      ],
+    },
+    philosophy: {
+      title: 'Philosophy Panel',
+      experts: [
+        { id:'expert-1', name:'Aristotle', provider:'openai', model: defaultModel, persona:'Practical wisdom, virtue ethics, teleology, and clear categorization.' },
+        { id:'expert-2', name:'Nietzsche', provider:'openai', model: defaultModel, persona:'Challenge assumptions, will to power, creative re-evaluation of values.' },
+        { id:'expert-3', name:'Laozi', provider:'openai', model: defaultModel, persona:'Non-forcing, simplicity, balance, and flow in decision-making.' },
+      ],
+    },
+    finance: {
+      title: 'Finance Panel',
+      experts: [
+        { id:'expert-1', name:'Warren (inspired by Buffett)', provider:'openai', model: defaultModel, persona:'Value investing, moats, margin of safety, and long-term discipline.' },
+        { id:'expert-2', name:'Ray (inspired by Dalio)', provider:'openai', model: defaultModel, persona:'Principles, macro cycles, risk parity, and systematic decision rules.' },
+        { id:'expert-3', name:'Cathie (inspired by Wood)', provider:'openai', model: defaultModel, persona:'Disruptive innovation, thematic growth, risk-taking with conviction.' },
+      ],
+    },
+  };
+  const chosen = presets[panel] || presets.tech;
+  const session = createSession({ experts: chosen.experts, moderator: { id:'moderator', name:'Moderator', provider:'openai', model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' }, autoDiscuss: false });
+  session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
+  createProvider();
+  const url = new URL('/' + session.id, req.url);
+  return Response.redirect(url);
 }
