@@ -13,7 +13,7 @@ export default function SessionPage(){
   const [history,setHistory]=useState<Message[]>([]);
   const inputRef=useRef<HTMLInputElement>(null);
   useEffect(()=>{ if (sessionId) localStorage.setItem('poe.sessionId',sessionId); else { const sid=localStorage.getItem('poe.sessionId'); if (sid) router.replace('/'+sid); } },[sessionId, router]);
-  useEffect(()=>{ if(!sessionId) return; const ev=new EventSource('/api/stream?sessionId='+sessionId); ev.onmessage=(e)=>{ const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string };
+  useEffect(()=>{ if(!sessionId) return; const url='/api/stream?sessionId='+sessionId; console.log('[SSE] opening', url); const ev=new EventSource(url); ev.onopen=()=>console.log('[SSE] open', sessionId); ev.onerror=(e)=>{ console.warn('[SSE] error', e); ev.close(); setTimeout(()=>location.reload(),1000); }; ev.onmessage=(e)=>{ const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string };
     if(data.type==='init'){ setHistory(data.history||[]);} 
     if(data.type==='message' && data.message){ setHistory(h=>[...h, data.message!]); }
     if(data.type==='message:prestart' && data.message){ const msg = { ...data.message, content: ' .' } as Message; setHistory(h=>[...h, msg]); }
@@ -53,7 +53,7 @@ export default function SessionPage(){
     if(data.type==='message:end' && data.message){ setHistory(h=>{ const copy=[...h];
         for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.message!.role && m.name===data.message!.name && (!data.turnId || m.turnId===data.turnId)){ copy[i] = { ...(data.message as Message), turnId: data.turnId || m.turnId, replyToName: data.replyToName || m.replyToName, replyToQuote: data.replyToQuote || m.replyToQuote }; break; } }
         return copy; }); }
-  }; ev.onerror=()=>{ ev.close(); setTimeout(()=>location.reload(),1000); }; return ()=>ev.close(); },[sessionId]);
+  }; return ()=>ev.close(); },[sessionId]);
 
   // Animate thinking dots for any message that is still placeholder (dot-only)
   useEffect(()=>{

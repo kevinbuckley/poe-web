@@ -5,8 +5,12 @@ import { getSession, onSessionEvent } from '../../../lib/store/sessions';
 export async function GET(req: NextRequest){
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get('sessionId') || '';
+  console.info('[SSE] connect attempt', { sessionId });
   const session = getSession(sessionId);
-  if (!session) return new Response('Session not found', { status: 404 });
+  if (!session) {
+    console.warn('[SSE] session not found', { sessionId });
+    return new Response(`Session not found: ${sessionId}`, { status: 404 });
+  }
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller){
@@ -26,5 +30,6 @@ export async function GET(req: NextRequest){
     },
     cancel(){ (this as { _cleanup?: () => void })._cleanup?.(); }
   });
-  return new Response(stream, { headers: { 'Content-Type':'text/event-stream; charset=utf-8', 'Cache-Control':'no-cache, no-transform', Connection:'keep-alive', 'Keep-Alive':'timeout=60', 'X-Accel-Buffering':'no' } });
+  console.info('[SSE] connected', { sessionId });
+  return new Response(stream, { headers: { 'Content-Type':'text/event-stream; charset=utf-8', 'Cache-Control':'no-cache, no-transform', Connection:'keep-alive', 'Keep-Alive':'timeout=60', 'X-Accel-Buffering':'no', 'x-poe-session-id': sessionId } });
 }
