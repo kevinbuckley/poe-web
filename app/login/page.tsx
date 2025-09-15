@@ -23,7 +23,7 @@ export default function LoginPage(){
     <main className="min-h-screen bg-black text-white">
       <div className="w-full px-6 py-16 flex flex-col items-center">
         <header className="mb-8 text-center p-6 pb-8">
-        <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight">POE</h1>
+        <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight  text-slate-300">POE</h1>
         <div className="mb-4">
             <Image src={windowImg} alt="Bouncer peering through a small door window" className="mx-auto rounded-md" priority />
           </div>

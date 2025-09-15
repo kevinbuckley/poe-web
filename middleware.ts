@@ -3,8 +3,8 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
   const appPassword = process.env.APP_PASSWORD;
-  // If no password configured, do nothing
-  if (!appPassword) return NextResponse.next();
+  // In production, still run middleware even if env missing; otherwise skip
+  if (!appPassword && process.env.NODE_ENV !== 'production') return NextResponse.next();
 
   const { pathname, search } = req.nextUrl;
 
@@ -12,9 +12,10 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/public') ||
+    pathname.startsWith('/_vercel') ||
     pathname === '/favicon.ico' ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/login')
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api/auth')
   ) {
     return NextResponse.next();
   }
@@ -29,7 +30,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!.*\.).*)'],
+  // Run middleware on all paths; we internally allowlist assets/auth
+  matcher: ['/:path*'],
 };
 
 
