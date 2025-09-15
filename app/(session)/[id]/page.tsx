@@ -93,6 +93,11 @@ export default function SessionPage(){
   return (
     <main className="min-h-screen" style={{ backgroundColor:'#f6f7f3', backgroundImage:'radial-gradient(#dfe3e0 0.6px, transparent 0.6px)', backgroundSize:'18px 18px', backgroundPosition:'-10px -10px' }}>
       <div className="w-full px-6 py-16 flex flex-col items-center">
+        <div className="absolute top-4 right-4">
+          <form action="/api/auth/logout" method="post">
+            <button className="inline-flex items-center rounded-full border border-slate-300 bg-white/80 px-3 py-1 text-xs text-slate-700 hover:bg-white shadow-sm">Logout</button>
+          </form>
+        </div>
         <header className="mb-10 text-center p-6 pb-10">
           <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight text-slate-900">Panel discussion</h1>
           <h2 className="text-slate-600 italic md:text-[24px] md:text-base max-w-[28ch] mx-auto">your experts will speak in turn</h2>
