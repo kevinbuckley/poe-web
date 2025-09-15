@@ -11,17 +11,20 @@ export async function POST(req: NextRequest){
     if (!session) return Response.json({ error: 'Session not found' }, { status: 404 });
     const provider = createProvider();
     const loop = new AgenticLoop(session, provider);
-    // Immediately signal UI that first expert is starting to think
-    const firstExpert = session.experts?.[0];
-    if (firstExpert) {
-      emitSessionEvent(session.id, { type: 'message:prestart', message: { role: 'expert', name: firstExpert.name, content: '' } });
+    const { searchParams } = new URL(req.url);
+    const wait = searchParams.get('wait') === '1';
+    if (wait){
+      // Non-streaming fallback: run synchronously and return history
+      const text = await loop.step(body.content);
+      return Response.json({ text, history: session.history });
     }
-    // Fire-and-forget the step to enable immediate streaming via SSE
+    // Streaming path: signal and fire-and-forget
+    const firstExpert = session.experts?.[0];
+    if (firstExpert) emitSessionEvent(session.id, { type: 'message:prestart', message: { role: 'expert', name: firstExpert.name, content: '' } });
     loop.step(body.content).catch((e: unknown)=>{
       const msg = e instanceof Error ? e.message : 'Unknown error';
       emitSessionEvent(session.id, { type: 'message', message: { role: 'system', content: `Error: ${msg}` } });
     });
-    // Respond immediately; UI will update via SSE
     return Response.json({ ok: true });
   } catch (e: unknown){
     const msg = e instanceof Error ? e.message : 'Unknown error';
