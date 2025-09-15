@@ -19,8 +19,7 @@ export async function POST(req: NextRequest){
       return Response.json({ text, history: session.history });
     }
     // Streaming path: signal and fire-and-forget
-    const firstExpert = session.experts?.[0];
-    if (firstExpert) emitSessionEvent(session.id, { type: 'message:prestart', message: { role: 'expert', name: firstExpert.name, content: '' } });
+    // Do not emit prestart here; the loop emits start when each expert begins.
     loop.step(body.content).catch((e: unknown)=>{
       const msg = e instanceof Error ? e.message : 'Unknown error';
       emitSessionEvent(session.id, { type: 'message', message: { role: 'system', content: `Error: ${msg}` } });

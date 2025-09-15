@@ -12,7 +12,10 @@ export default function LoginPage(){
     e.preventDefault();
     const r = await fetch('/api/auth/login',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) });
     if (r.ok){
-      const next = new URLSearchParams(location.search).get('next') || '/';
+      const raw = new URLSearchParams(location.search).get('next') || '';
+      const safe = (s: string) => s.startsWith('/') && !s.includes('undefined') && s !== '/login';
+      const next = safe(raw) ? raw : '/';
+      console.log('[login] redirect ->', next, '(raw:', raw, ')');
       location.href = next;
     } else {
       const t = await r.text().catch(()=> '');

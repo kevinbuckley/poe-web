@@ -3,10 +3,11 @@ import { createSession } from '../../../lib/store/sessions';
 import { createProvider } from '../../../lib/providers';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-export default async function StartPanelPage({ params }: { params: { panel: string } }){
+export default async function StartPanelPage({ params }: { params: Promise<{ panel: string }> }){
   const defaultModel = process.env.DEFAULT_MODEL || 'gpt-4.1-nano';
-  const panel = params.panel || 'tech';
+  const p = await params; const panel = p.panel || 'tech';
 
   const presets: Record<string, { title: string; experts: { id:string; name:string; provider:'openai'; model:string; persona:string }[] }> = {
     tech: {
@@ -36,7 +37,7 @@ export default async function StartPanelPage({ params }: { params: { panel: stri
   };
   const chosen = presets[panel] || presets.tech;
   const moderator = { id:'moderator', name:'Moderator', provider:'openai' as const, model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' };
-  const session = createSession({ experts: chosen.experts, moderator, autoDiscuss: false });
+  const session = await createSession({ experts: chosen.experts, moderator, autoDiscuss: false });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
   createProvider();
   redirect('/' + session.id);

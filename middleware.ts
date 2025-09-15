@@ -25,7 +25,13 @@ export function middleware(req: NextRequest) {
 
   const url = req.nextUrl.clone();
   url.pathname = '/login';
-  if (pathname !== '/') url.search = `?next=${encodeURIComponent(pathname + search)}`;
+  // Only attach next when it's a real path (not root, not undefined)
+  const nextPath = pathname || '';
+  if (nextPath && nextPath !== '/' && !nextPath.includes('undefined')){
+    url.search = `?next=${encodeURIComponent(nextPath + search)}`;
+  } else {
+    url.search = '';
+  }
   return NextResponse.redirect(url);
 }
 

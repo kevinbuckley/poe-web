@@ -38,7 +38,7 @@ export async function POST(req: NextRequest){
   const chosen = presets[panel] || presets.tech;
   const experts = Array.isArray(body.experts) && body.experts.length ? body.experts : chosen.experts;
   const moderator = body.moderator || { id:'moderator', name:'Moderator', provider:'openai', model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' };
-  const session = createSession({ experts, moderator, autoDiscuss: !!body.autoDiscuss });
+  const session = await createSession({ experts, moderator, autoDiscuss: !!body.autoDiscuss });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
   // quick provider instantiation check
   createProvider();
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest){
     },
   };
   const chosen = presets[panel] || presets.tech;
-  const session = createSession({ experts: chosen.experts, moderator: { id:'moderator', name:'Moderator', provider:'openai', model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' }, autoDiscuss: false });
+  const session = await createSession({ experts: chosen.experts, moderator: { id:'moderator', name:'Moderator', provider:'openai', model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' }, autoDiscuss: false });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
   createProvider();
   const url = new URL('/' + session.id, req.url);

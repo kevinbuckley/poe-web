@@ -20,7 +20,7 @@ export default function Page(){
 
         <div className="flex flex-col md:flex-row justify-center items-stretch gap-6 w-fit mx-auto">
           {/* Tech panel card */}
-          <Link href="/start/tech" className="group relative block h-full w-[360px] max-w-full rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-sm shadow-[0_12px_30px_rgba(2,6,23,0.08)] p-2 text-left hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] transition">
+          <Link href="/start/tech" data-testid="start-tech" className="group relative block h-full w-[360px] max-w-full rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-sm shadow-[0_12px_30px_rgba(2,6,23,0.08)] p-2 text-left hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] transition">
             <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[linear-gradient(180deg,rgba(255,255,255,0.6),transparent)]" />
             <h2 className="relative text-[20px] font-semibold tracking-tight text-slate-900 text-center">Tech Panel</h2>
             <ul className="relative mt-2 text-slate-600 text-sm md:text-base text-left space-y-1 list-none">
@@ -31,7 +31,7 @@ export default function Page(){
           </Link>
 
           {/* Philosophy panel card */}
-          <Link href="/start/philosophy" className="group relative block h-full w-[360px] max-w-full rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-sm shadow-[0_12px_30px_rgba(2,6,23,0.08)] p-2 text-left hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] transition">
+          <Link href="/start/philosophy" data-testid="start-philosophy" className="group relative block h-full w-[360px] max-w-full rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-sm shadow-[0_12px_30px_rgba(2,6,23,0.08)] p-2 text-left hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] transition">
             <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[linear-gradient(180deg,rgba(255,255,255,0.6),transparent)]" />
             <h2 className="relative text-[20px] font-semibold tracking-tight text-slate-900 text-center">Philosophy Panel</h2>
             <ul className="relative mt-2 text-slate-600 text-sm md:text-base text-left space-y-1 list-none">
@@ -42,7 +42,7 @@ export default function Page(){
           </Link>
 
           {/* Finance panel card */}
-          <Link href="/start/finance" className="group relative block h-full w-[360px] max-w-full rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-sm shadow-[0_12px_30px_rgba(2,6,23,0.08)] p-2 text-left hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] transition">
+          <Link href="/start/finance" data-testid="start-finance" className="group relative block h-full w-[360px] max-w-full rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-sm shadow-[0_12px_30px_rgba(2,6,23,0.08)] p-2 text-left hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] transition">
             <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[linear-gradient(180deg,rgba(255,255,255,0.6),transparent)]" />
             <h2 className="relative text-[20px] font-semibold tracking-tight text-slate-900 text-center">Finance Panel</h2>
             <ul className="relative mt-2 text-slate-600 text-sm md:text-base text-left space-y-1 list-none">
