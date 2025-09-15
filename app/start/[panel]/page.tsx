@@ -39,7 +39,8 @@ export default async function StartPanelPage({ params }: { params: Promise<{ pan
   const moderator = { id:'moderator', name:'Moderator', provider:'openai' as const, model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' };
   const session = await createSession({ experts: chosen.experts, moderator, autoDiscuss: false });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
-  createProvider();
+  // Force provider warm-up so first call is fast; ignore result
+  try { createProvider(); } catch {}
   redirect('/' + session.id);
 }
 

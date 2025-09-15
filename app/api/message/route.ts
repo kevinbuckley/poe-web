@@ -7,7 +7,12 @@ import { AgenticLoop } from '../../../lib/orchestration/AgenticLoop';
 export async function POST(req: NextRequest){
   try{
     const body = await req.json();
-    const session = await getSession(body.sessionId);
+    let session = await getSession(body.sessionId);
+    // brief retry to smooth KV propagation across regions/instances
+    for (let i=0; !session && i<12; i++) { // ~3s total
+      await new Promise(r=>setTimeout(r, 250));
+      session = await getSession(body.sessionId);
+    }
     if (!session) return Response.json({ error: 'Session not found' }, { status: 404 });
     const provider = createProvider();
     const loop = new AgenticLoop(session, provider);
