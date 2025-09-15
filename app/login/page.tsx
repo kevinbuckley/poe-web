@@ -27,7 +27,7 @@ export default function LoginPage(){
         <div className="mb-4">
             <Image src={windowImg} alt="Bouncer peering through a small door window" className="mx-auto rounded-md" priority />
           </div>
-          <p className="mt-1 text-slate-300">what's the password? this is exclusive access—whisper it</p>
+          <p className="mt-1 text-slate-300">what&apos;s the password? this is exclusive access—whisper it</p>
         </header>
         <form onSubmit={submit} className="rounded-2xl border border-neutral-800 bg-neutral-900/80 backdrop-blur px-6 py-5 shadow-[0_12px_30px_rgba(0,0,0,0.6)] w-full max-w-md flex flex-col gap-3">
           <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)} placeholder="Password" className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-slate-400" />

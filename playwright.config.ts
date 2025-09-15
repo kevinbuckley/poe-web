@@ -35,7 +35,15 @@ export default defineConfig({
         reuseExistingServer: false,
         env: { USE_MOCK_PROVIDER: '0', OPENAI_API_KEY: process.env.OPENAI_API_KEY || '' }
       }
-    } as any)
+    } as unknown as {
+      name: string;
+      use: Record<string, unknown>;
+      grep: RegExp;
+      grepInvert?: RegExp | undefined;
+      webServer: {
+        command: string; port: number; reuseExistingServer: boolean; env: Record<string, string>;
+      };
+    })
   ]
 });
 
