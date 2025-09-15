@@ -7,7 +7,7 @@ import { AgenticLoop } from '../../../lib/orchestration/AgenticLoop';
 export async function POST(req: NextRequest){
   try{
     const body = await req.json();
-    const session = getSession(body.sessionId);
+    const session = await getSession(body.sessionId);
     if (!session) return Response.json({ error: 'Session not found' }, { status: 404 });
     const provider = createProvider();
     const loop = new AgenticLoop(session, provider);
