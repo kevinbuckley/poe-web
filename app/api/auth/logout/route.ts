@@ -9,4 +9,12 @@ export async function POST(req: NextRequest){
   return res;
 }
 
+// Also support GET (e.g., if someone navigates directly or a prefetch occurs)
+export async function GET(req: NextRequest){
+  const url = new URL('/login', req.url);
+  const res = NextResponse.redirect(url);
+  res.headers.set('Set-Cookie', 'app_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  return res;
+}
+
 
