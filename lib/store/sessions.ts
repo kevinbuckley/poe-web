@@ -9,10 +9,13 @@ const g = globalThis as unknown as {
 };
 
 const listeners = g.__poe_listeners || (g.__poe_listeners = new Map<string, Set<(data: string) => void>>());
-const haveRedis = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+// Accept either Upstash Redis or Vercel KV envs
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+const haveRedis = Boolean(REDIS_URL && REDIS_TOKEN);
 export function storageMode(){ return haveRedis ? 'redis' : 'memory'; }
 const redis = haveRedis
-  ? new Redis({ url: process.env.UPSTASH_REDIS_REST_URL!, token: process.env.UPSTASH_REDIS_REST_TOKEN! })
+  ? new Redis({ url: REDIS_URL as string, token: REDIS_TOKEN as string })
   : undefined as unknown as Redis;
 
 // Local/dev in-memory fallback (singleton)
