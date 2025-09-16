@@ -1,4 +1,5 @@
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 import { NextRequest } from 'next/server';
 import { getSession, getEventLen, getEventsFrom } from '../../../lib/store/sessions';
 import type { ConversationSession } from '../../../lib/types';
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest){
       // wait for session to exist
       try {
         let waitedMs = 0;
-        while (!session && !closed && waitedMs < 5000){
+        while (!session && !closed && waitedMs < 10000){
           await new Promise(r=>setTimeout(r, 200));
           waitedMs += 200;
           session = await getSession(sessionId) as ConversationSession | undefined;
@@ -32,6 +33,8 @@ export async function GET(req: NextRequest){
         return;
       }
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type:'init', history: session.history })}\n\n`));
+      // Immediately send a soft ack that SSE is ready so client may post
+      try { controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type:'ready' })}\n\n`)); } catch {}
       // Poll events source-of-truth to avoid duplicate delivery with local listeners
       let index = 0;
       try { index = await getEventLen(sessionId); } catch {}

@@ -11,6 +11,7 @@ export default function SessionPage(){
   const params=useParams();
   const sessionId=(params?.id as string)||'';
   const [history,setHistory]=useState<Message[]>([]);
+  const [sseReady,setSseReady]=useState<boolean>(false);
   const inputRef=useRef<HTMLInputElement>(null);
   const activeConnId=useRef<string|null>(null);
   const reconnectTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -28,6 +29,7 @@ export default function SessionPage(){
       ev.onerror=(e)=>{ console.warn('[SSE] error', e); ev.close(); if(aborted || activeConnId.current!==myId) return; if(reconnectTimer.current) clearTimeout(reconnectTimer.current); reconnectTimer.current = setTimeout(()=>{ if(!aborted && activeConnId.current===myId) connect(); }, 1500); };
       ev.onmessage=(e)=>{ if(aborted || activeConnId.current!==myId) return; const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string };
     if(data.type==='init'){ setHistory(data.history||[]);} 
+    if(data.type==='ready'){ setSseReady(true); }
     if(data.type==='message' && data.message){ setHistory(h=>[...h, data.message!]); }
     if(data.type==='message:prestart' && data.message){
       setHistory(h=>{
@@ -108,6 +110,11 @@ export default function SessionPage(){
     if(!content) return;
     // Optimistically render the user's message in the chat list
     setHistory(h=>[...h,{ role:'user', content } as Message]);
+    // Wait briefly for SSE init to ensure session is visible to backend (deploy consistency)
+    if(!sseReady){
+      const start=Date.now();
+      while(!sseReady && Date.now()-start<5000){ await new Promise(r=>setTimeout(r, 100)); }
+    }
     try{
       const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId, content})});
       const ct=r.headers.get('content-type')||'';

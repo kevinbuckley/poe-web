@@ -10,6 +10,7 @@ const g = globalThis as unknown as {
 
 const listeners = g.__poe_listeners || (g.__poe_listeners = new Map<string, Set<(data: string) => void>>());
 const haveRedis = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+export function storageMode(){ return haveRedis ? 'redis' : 'memory'; }
 const redis = haveRedis
   ? new Redis({ url: process.env.UPSTASH_REDIS_REST_URL!, token: process.env.UPSTASH_REDIS_REST_TOKEN! })
   : undefined as unknown as Redis;
