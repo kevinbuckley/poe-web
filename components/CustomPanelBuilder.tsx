@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Props = { defaultModel: string };
@@ -151,6 +151,13 @@ export function CustomPanelBuilder({ defaultModel }: Props){
 
   const closePersonaPicker = () => setPersonaPickerTarget(null);
 
+  useEffect(()=>{
+    if (personaPickerTarget === null) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [personaPickerTarget]);
+
   return (
     <div className="w-full max-w-3xl mx-auto">
       <div className="mb-8">
@@ -255,30 +262,32 @@ export function CustomPanelBuilder({ defaultModel }: Props){
       </div>
 
       {personaPickerTarget !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-8">
-          <div className="relative w-full max-w-3xl rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-[0_24px_60px_rgba(2,6,23,0.25)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-8" role="dialog" aria-modal="true" aria-labelledby="persona-picker-title">
+          <div className="relative flex w-full max-w-3xl max-h-[85vh] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(2,6,23,0.25)]">
             <button type="button" onClick={closePersonaPicker} className="absolute right-4 top-4 text-slate-400 transition hover:text-slate-600" aria-label="Close persona picker">✕</button>
-            <h3 className="text-xl font-semibold text-slate-900">Pick a persona for Expert {personaPickerTarget + 1}</h3>
-            <p className="mt-1 text-sm text-slate-600">Choose someone to drop into that seat. You can still edit their voice afterward.</p>
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {personaSuggestions.map(suggestion => (
-                <button
-                  key={suggestion.id}
-                  type="button"
-                  onClick={()=>{ applySuggestion(personaPickerTarget, suggestion); closePersonaPicker(); }}
-                  className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-slate-400 hover:shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
-                >
-                  <div>
-                    <span className="inline-flex items-center rounded-full bg-slate-900/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-700">{suggestion.origin}</span>
-                    <p className="mt-3 text-base font-semibold text-slate-900">{suggestion.label}</p>
-                    <p className="mt-2 text-sm text-slate-600">{suggestion.persona}</p>
-                  </div>
-                  <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
-                    Add to Expert {personaPickerTarget + 1}
-                    <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
-                  </span>
-                </button>
-              ))}
+            <div className="px-6 py-6 overflow-y-auto">
+              <h3 id="persona-picker-title" className="text-xl font-semibold text-slate-900">Pick a persona for Expert {personaPickerTarget + 1}</h3>
+              <p className="mt-1 text-sm text-slate-600">Choose someone to drop into that seat. You can still edit their voice afterward.</p>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {personaSuggestions.map(suggestion => (
+                  <button
+                    key={suggestion.id}
+                    type="button"
+                    onClick={()=>{ applySuggestion(personaPickerTarget, suggestion); closePersonaPicker(); }}
+                    className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-slate-400 hover:shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
+                  >
+                    <div>
+                      <span className="inline-flex items-center rounded-full bg-slate-900/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-700">{suggestion.origin}</span>
+                      <p className="mt-3 text-base font-semibold text-slate-900">{suggestion.label}</p>
+                      <p className="mt-2 text-sm text-slate-600">{suggestion.persona}</p>
+                    </div>
+                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+                      Add to Expert {personaPickerTarget + 1}
+                      <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -145,6 +145,13 @@ export default function SessionPage(){
     window.addEventListener('keydown',onKey);
     return ()=>window.removeEventListener('keydown',onKey);
   },[promptPeek]);
+
+  useEffect(()=>{
+    if(!promptPeek) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    return ()=>{ document.body.style.overflow = previousOverflow; };
+  },[promptPeek]);
   
   // Animate thinking dots for any message that is still placeholder (dot-only)
   useEffect(()=>{
@@ -299,13 +306,13 @@ export default function SessionPage(){
       </div>
       {promptPeek && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8 bg-slate-900/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="prompt-dialog-title">
-          <div className="relative w-full max-w-lg max-h-[80vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl flex flex-col">
+          <div className="relative w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl flex flex-col">
             <button type="button" onClick={()=>setPromptPeek(null)} className="absolute right-3 top-3 text-slate-400 transition hover:text-slate-600" aria-label="Close prompt preview">✕</button>
             <div className="px-6 py-5 flex-1 overflow-y-auto">
               <h3 id="prompt-dialog-title" className="text-lg font-semibold text-slate-900">{promptPeek.name}&apos;s briefing</h3>
               <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">Model: {promptPeek.model}</p>
-              <div className="mt-4 max-h-[50vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
-                <pre className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-slate-800">{promptPeek.prompt}</pre>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+                <pre className="max-h-[55vh] overflow-y-auto whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-slate-800">{promptPeek.prompt}</pre>
               </div>
               <p className="mt-3 text-xs text-slate-500">Their persona frames how they respond. Share responsibly.</p>
             </div>
