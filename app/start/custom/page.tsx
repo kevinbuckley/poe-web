@@ -1,4 +1,5 @@
 import { CustomPanelBuilder } from '../../../components/CustomPanelBuilder';
+import { LogoutButton } from '../../../components/LogoutButton';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,9 +14,7 @@ export default function CustomStartPage(){
       </div>
       <div className="relative z-10 w-full px-6 py-16 flex flex-col items-center">
         <div className="absolute top-4 right-4">
-          <form action="/api/auth/logout" method="post">
-            <button className="inline-flex items-center rounded-full border border-slate-300 bg-white/80 px-3 py-1 text-xs text-slate-700 hover:bg-white shadow-sm">Logout</button>
-          </form>
+          <LogoutButton />
         </div>
         <header className="mb-10 text-center p-6 pb-10">
           <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight text-slate-900">

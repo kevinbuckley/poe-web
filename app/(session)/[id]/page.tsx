@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useRouter, useParams } from 'next/navigation';
+import { LogoutButton } from '../../../components/LogoutButton';
 
 type Message = { role:'user'|'assistant'|'system'|'expert'|'moderator'; content:string; name?:string; replyToName?: string; replyToQuote?: string; turnId?: string };
 type ExpertBrief = { id:string; name:string; persona:string; model:string };
@@ -197,9 +198,7 @@ export default function SessionPage(){
     <main className="min-h-screen" style={{ backgroundColor:'#f6f7f3', backgroundImage:'radial-gradient(#dfe3e0 0.6px, transparent 0.6px)', backgroundSize:'18px 18px', backgroundPosition:'-10px -10px' }}>
       <div className="w-full px-6 py-16 flex flex-col items-center">
         <div className="absolute top-4 right-4">
-          <form action="/api/auth/logout" method="post">
-            <button className="inline-flex items-center rounded-full border border-slate-300 bg-white/80 px-3 py-1 text-xs text-slate-700 hover:bg-white shadow-sm">Logout</button>
-          </form>
+          <LogoutButton />
         </div>
         <header className="mb-10 text-center p-6 pb-10">
           <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight text-slate-900">Panel discussion</h1>
