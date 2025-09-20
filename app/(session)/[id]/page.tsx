@@ -194,6 +194,10 @@ export default function SessionPage(){
     setPromptPeek({ name:expert.name, model:expert.model, prompt:expert.persona });
   };
   function renderContentHTML(text: string){ return DOMPurify.sanitize(String(marked.parse(text) || '')); }
+  const startOver = () => {
+    try { localStorage.removeItem('poe.sessionId'); } catch {}
+    router.push('/');
+  };
   return (
     <main className="min-h-screen" style={{ backgroundColor:'#f6f7f3', backgroundImage:'radial-gradient(#dfe3e0 0.6px, transparent 0.6px)', backgroundSize:'18px 18px', backgroundPosition:'-10px -10px' }}>
       <div className="w-full px-6 py-16 flex flex-col items-center">
@@ -203,6 +207,14 @@ export default function SessionPage(){
         <header className="mb-10 text-center p-6 pb-10">
           <h1 className="text-[40px] md:text-[48px] leading-[1.05] font-semibold tracking-tight text-slate-900">Panel discussion</h1>
           <h2 className="text-slate-600 italic md:text-[24px] md:text-base max-w-[28ch] mx-auto">your experts will speak in turn</h2>
+          <button
+            type="button"
+            onClick={startOver}
+            data-testid="start-over"
+            className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+          >
+            Start over
+          </button>
         </header>
 
         {experts.length>0 && (
@@ -287,12 +299,14 @@ export default function SessionPage(){
       </div>
       {promptPeek && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8 bg-slate-900/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="prompt-dialog-title">
-          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div className="relative w-full max-w-lg max-h-[80vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl flex flex-col">
             <button type="button" onClick={()=>setPromptPeek(null)} className="absolute right-3 top-3 text-slate-400 transition hover:text-slate-600" aria-label="Close prompt preview">✕</button>
-            <div className="px-6 py-5">
+            <div className="px-6 py-5 flex-1 overflow-y-auto">
               <h3 id="prompt-dialog-title" className="text-lg font-semibold text-slate-900">{promptPeek.name}&apos;s briefing</h3>
               <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">Model: {promptPeek.model}</p>
-              <pre className="mt-4 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-800">{promptPeek.prompt}</pre>
+              <div className="mt-4 max-h-[50vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
+                <pre className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-slate-800">{promptPeek.prompt}</pre>
+              </div>
               <p className="mt-3 text-xs text-slate-500">Their persona frames how they respond. Share responsibly.</p>
             </div>
           </div>

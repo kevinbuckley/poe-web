@@ -56,4 +56,32 @@ test('start finance panel and see financier', async ({ page }) => {
   await expect(page.locator('input[placeholder="Say something"]')).toBeVisible();
 });
 
+test('start comedy panel and see comedian', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('h1:has-text("Panel of Experts")');
+  await Promise.all([
+    page.waitForURL(/\/[A-Za-z0-9-]+$/),
+    page.getByTestId('start-comedy').click()
+  ]);
+  await page.waitForSelector('h1:has-text("Panel discussion")');
+  await page.waitForSelector('input[placeholder="Say something"]', { state: 'visible' });
+  await page.fill('input[placeholder="Say something"]', 'Pitch me a hilarious opener.');
+  await page.click('button:has-text("Send")');
+  await expect(page.locator('input[placeholder="Say something"]')).toBeVisible();
+});
 
+test('start over returns to panel selection', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('h1:has-text("Panel of Experts")');
+  await Promise.all([
+    page.waitForURL(/\/[A-Za-z0-9-]+$/),
+    page.getByTestId('start-tech').click()
+  ]);
+  await page.waitForSelector('h1:has-text("Panel discussion")');
+  await page.waitForSelector('[data-testid="start-over"]', { state: 'visible' });
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/'),
+    page.getByTestId('start-over').click()
+  ]);
+  await page.waitForSelector('h1:has-text("Panel of Experts")');
+});

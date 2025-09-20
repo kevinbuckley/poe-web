@@ -34,6 +34,14 @@ export default async function StartPanelPage({ params }: { params: Promise<{ pan
         { id:'expert-3', name:'Cathie (inspired by Wood)', provider:'openai', model: defaultModel, persona:'Disruptive innovation, thematic growth, risk-taking with conviction.' },
       ],
     },
+    comedy: {
+      title: 'Comedy Panel',
+      experts: [
+        { id:'expert-1', name:'George Carlin', provider:'openai', model: defaultModel, persona:'Biting social commentary, linguistic precision, and fearless truth-telling with wit.' },
+        { id:'expert-2', name:'Jon Stewart', provider:'openai', model: defaultModel, persona:'Satirical political analysis, empathetic interviews, and incisive comedic timing.' },
+        { id:'expert-3', name:'Dave Chapelle', provider:'openai', model: defaultModel, persona:'Candid storytelling, cultural humor, and improvisational edge with heart.' },
+      ],
+    },
   };
   const chosen = presets[panel] || presets.tech;
   const moderator = { id:'moderator', name:'Moderator', provider:'openai' as const, model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' };
@@ -43,5 +51,3 @@ export default async function StartPanelPage({ params }: { params: Promise<{ pan
   try { createProvider(); } catch {}
   redirect('/' + session.id);
 }
-
-

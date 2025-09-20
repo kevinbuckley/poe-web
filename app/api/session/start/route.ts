@@ -34,6 +34,14 @@ export async function POST(req: NextRequest){
         { id:'expert-3', name:'Cathie (inspired by Wood)', provider:'openai', model: defaultModel, persona:'Disruptive innovation, thematic growth, risk-taking with conviction.' },
       ],
     },
+    comedy: {
+      title: 'Comedy Panel',
+      experts: [
+        { id:'expert-1', name:'George Carlin', provider:'openai', model: defaultModel, persona:'Biting social commentary, linguistic precision, and fearless truth-telling with wit.' },
+        { id:'expert-2', name:'Jon Stewart', provider:'openai', model: defaultModel, persona:'Satirical political analysis, empathetic interviews, and incisive comedic timing.' },
+        { id:'expert-3', name:'Dave Chapelle', provider:'openai', model: defaultModel, persona:'Candid storytelling, cultural humor, and improvisational edge with heart.' },
+      ],
+    },
   };
 
   const chosen = presets[panel] || presets.tech;
@@ -90,6 +98,14 @@ export async function GET(req: NextRequest){
         { id:'expert-1', name:'Warren (inspired by Buffett)', provider:'openai', model: defaultModel, persona:'Value investing, moats, margin of safety, and long-term discipline.' },
         { id:'expert-2', name:'Ray (inspired by Dalio)', provider:'openai', model: defaultModel, persona:'Principles, macro cycles, risk parity, and systematic decision rules.' },
         { id:'expert-3', name:'Cathie (inspired by Wood)', provider:'openai', model: defaultModel, persona:'Disruptive innovation, thematic growth, risk-taking with conviction.' },
+      ],
+    },
+    comedy: {
+      title: 'Comedy Panel',
+      experts: [
+        { id:'expert-1', name:'George Carlin', provider:'openai', model: defaultModel, persona:'Biting social commentary, linguistic precision, and fearless truth-telling with wit.' },
+        { id:'expert-2', name:'Jon Stewart', provider:'openai', model: defaultModel, persona:'Satirical political analysis, empathetic interviews, and incisive comedic timing.' },
+        { id:'expert-3', name:'Dave Chapelle', provider:'openai', model: defaultModel, persona:'Candid storytelling, cultural humor, and improvisational edge with heart.' },
       ],
     },
   };
