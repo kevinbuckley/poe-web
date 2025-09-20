@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { buildPanelPresets } from '../lib/orchestration/panelPresets';
 
 type Props = { defaultModel: string };
 type ExpertDraft = { id: string; name: string; persona: string };
@@ -12,6 +13,23 @@ type PersonaSuggestion = {
   persona: string;
 };
 
+type LlmSuggestion = {
+  id?: string;
+  label?: string;
+  name?: string;
+  origin?: string;
+  persona?: string;
+};
+
+const normalisePanelKey = (title: string, roster: readonly ExpertDraft[]) => {
+  const topic = title.trim() || initialPanelTitle;
+  const simplified = roster.map(expert => ({
+    name: expert.name.trim(),
+    persona: expert.persona.trim(),
+  }));
+  return JSON.stringify({ topic, roster: simplified });
+};
+
 const templateExperts: ExpertDraft[] = [
   { id: 'expert-1', name: 'Visionary Strategist', persona: 'Connects the horizon to today. Spots emerging patterns, frames the opportunity, and keeps everyone anchored to the core objective.' },
   { id: 'expert-2', name: 'Pragmatic Builder', persona: 'Breaks big ideas into concrete steps. Loves constraints, trade-offs, and sequencing so the plan actually ships.' },
@@ -21,56 +39,20 @@ const templateExperts: ExpertDraft[] = [
 const initialPanelTitle = 'My Custom Panel';
 const initialPanelGoal = 'Keep the conversation on the outcomes that matter most.';
 
-const personaSuggestions: PersonaSuggestion[] = [
-  {
-    id: 'ada-lovelace',
-    label: 'Ada Lovelace',
-    origin: 'Mathematician & OG computer theorist',
-    persona: 'Designs algorithms like poetry, geeks out over clean abstractions, and loves pairing science with wild imagination.',
-  },
-  {
-    id: 'grace-hopper',
-    label: 'Grace Hopper',
-    origin: 'Rear Admiral & compiler whisperer',
-    persona: 'Swings a metaphorical debugger like a sword, demands plain English, and ships the thing today—not next sprint.',
-  },
-  {
-    id: 'linus-torvalds',
-    label: 'Linus Torvalds',
-    origin: 'Creator of Linux & Git',
-    persona: 'Brings glorious candor, nails performance conversations, and keeps the panel honest about what scales.',
-  },
-  {
-    id: 'anthony-bourdain',
-    label: 'Anthony Bourdain',
-    origin: 'Chef, traveler, professional truth-teller',
-    persona: 'Chases messy, real-world context, swaps stories over metaphorical street food, and calls out corporate flavorlessness instantly.',
-  },
-  {
-    id: 'rihanna',
-    label: 'Rihanna',
-    origin: 'Artist & Fenty founder',
-    persona: 'Mixes swagger with product instincts, obsesses over inclusive experiences, and knows how to make every launch feel like a drop.',
-  },
-  {
-    id: 'neil-degrasse-tyson',
-    label: 'Neil deGrasse Tyson',
-    origin: 'Astrophysicist & cosmic hype man',
-    persona: 'Zooms the conversation out to first principles, checks the math twice, and adds just the right amount of interstellar flair.',
-  },
-  {
-    id: 'issa-rae',
-    label: 'Issa Rae',
-    origin: 'Writer, producer, entrepreneur',
-    persona: 'Spots authentic human beats, writes dialogue that actually sounds like people, and keeps the panel witty and grounded.',
-  },
-  {
-    id: 'simone-biles',
-    label: 'Simone Biles',
-    origin: 'Most decorated gymnast in history',
-    persona: 'Sets insane execution bars, talks recovery and resilience like a pro, and reminds everyone that sticking the landing matters.',
-  },
-];
+const formatList = (items: string[]) => {
+  if (!items.length) return '';
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+};
+
+const hashString = (input: string) => {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++){
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0; // force 32-bit
+  }
+  return Math.abs(hash);
+};
 
 export function CustomPanelBuilder({ defaultModel }: Props){
   const router = useRouter();
@@ -81,9 +63,31 @@ export function CustomPanelBuilder({ defaultModel }: Props){
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [personaPickerTarget, setPersonaPickerTarget] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<PersonaSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const panelCacheRef = useRef(new Map<string, { version: number; data?: PersonaSuggestion[][]; promise?: Promise<PersonaSuggestion[][]> }>());
+  const [panelRefreshNonce, setPanelRefreshNonce] = useState(0);
+  const panelKey = useMemo(() => normalisePanelKey(panelTitle, experts), [panelTitle, experts]);
+  const rosterSnapshot = useMemo(() => experts.map(expert => ({
+    name: expert.name.trim(),
+    persona: expert.persona.trim(),
+  })), [experts]);
 
   const totalSteps = 2;
   const progress = useMemo(() => ((step + 1) / totalSteps) * 100, [step]);
+
+  const baseSuggestionPool = useMemo(() => {
+    const presets = buildPanelPresets(defaultModel);
+    return Object.values(presets).flatMap(preset =>
+      preset.experts.map(expert => ({
+        id: `${preset.title}-${expert.id}`,
+        label: expert.name,
+        origin: preset.title.replace(/ Panel$/i, '') || preset.title,
+        persona: expert.persona,
+      }))
+    );
+  }, [defaultModel]);
 
   const updateExpert = (index: number, updates: Partial<ExpertDraft>) => {
     setExperts(prev => prev.map((expert, i) => (i === index ? { ...expert, ...updates } : expert)));
@@ -95,8 +99,22 @@ export function CustomPanelBuilder({ defaultModel }: Props){
   };
 
   const applySuggestion = (index: number, suggestion: PersonaSuggestion) => {
-    setExperts(prev => prev.map((expert, i) => (i === index ? { ...expert, name: suggestion.label, persona: suggestion.persona } : expert)));
+    const currentPanelKey = panelKey;
+    const cacheEntry = panelCacheRef.current.get(currentPanelKey);
+    setExperts(prev => {
+      const next = prev.map((expert, i) => (i === index ? { ...expert, name: suggestion.label, persona: suggestion.persona } : expert));
+      const nextPanelKey = normalisePanelKey(panelTitle, next);
+      if (cacheEntry){
+        panelCacheRef.current.set(nextPanelKey, cacheEntry);
+      }
+      return next;
+    });
     setError(null);
+  };
+
+  const openPersonaPicker = (index: number) => {
+    setSuggestionError(null);
+    setPersonaPickerTarget(index);
   };
 
   const goNext = () => {
@@ -151,6 +169,180 @@ export function CustomPanelBuilder({ defaultModel }: Props){
 
   const closePersonaPicker = () => setPersonaPickerTarget(null);
 
+  const generateFallbackSuggestions = useCallback((targetIndex: number, salt: number): PersonaSuggestion[] => {
+    const topic = panelTitle.trim() || initialPanelTitle;
+    const others = experts.filter((_, idx) => idx !== targetIndex);
+    const otherNames = others.map(expert => expert.name.trim()).filter(name => name.length);
+    const otherThemes = others
+      .map(expert => expert.persona.split(/[.!?]/)[0]?.trim())
+      .filter(theme => theme && theme.length) as string[];
+    const takenNames = new Set(
+      experts
+        .map(expert => expert.name.trim().toLowerCase())
+        .filter(name => name.length)
+    );
+    const seed = `${topic}|${otherNames.join('|')}|${targetIndex}|${salt}`;
+    const offset = hashString(seed);
+    const dynamic: PersonaSuggestion[] = [];
+    const seen = new Set<string>();
+
+    const contextualise = (base: PersonaSuggestion) => {
+      const complements = otherNames.length
+        ? `Pairs with ${formatList(otherNames)} by covering the edges they leave open.`
+        : '';
+      const focus = topic ? `Keeps the conversation grounded in ${topic}.` : '';
+      const thematic = otherThemes.length ? `Extends threads like ${formatList(otherThemes.slice(0, 2))}.` : '';
+      const additive = [base.persona, focus, complements, thematic].filter(Boolean).join(' ');
+      return additive.trim();
+    };
+
+    for (let stepCount = 0; dynamic.length < 8 && stepCount < baseSuggestionPool.length * 3; stepCount++){
+      const base = baseSuggestionPool[(offset + stepCount) % baseSuggestionPool.length];
+      const label = base.label.trim();
+      const lower = label.toLowerCase();
+      if (takenNames.has(lower) || seen.has(lower)) continue;
+      seen.add(lower);
+      dynamic.push({
+        id: `${base.id}-slot${targetIndex}-suggestion${dynamic.length}-s${salt}`,
+        label,
+        origin: `${base.origin} inspiration`,
+        persona: contextualise(base),
+      });
+    }
+
+    if (dynamic.length < 8){
+      for (let idx = 0; dynamic.length < 8 && idx < baseSuggestionPool.length; idx++){
+        const base = baseSuggestionPool[idx];
+        if (seen.has(base.label.toLowerCase())) continue;
+        dynamic.push({
+          id: `${base.id}-slot${targetIndex}-fallback${dynamic.length}-s${salt}`,
+          label: base.label,
+          origin: `${base.origin} inspiration`,
+          persona: contextualise(base),
+        });
+        seen.add(base.label.toLowerCase());
+      }
+    }
+
+    return dynamic.slice(0, 8);
+  }, [panelTitle, experts, baseSuggestionPool]);
+
+  const fetchPanelSuggestions = useCallback(async (panelKey: string, topic: string, roster: { name: string; persona: string }[]): Promise<PersonaSuggestion[][]> => {
+    try{
+      const res = await fetch('/api/persona/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, experts: roster }),
+      });
+      if (!res.ok){
+        const text = await res.text().catch(()=> '');
+        throw new Error(text || `Request failed with status ${res.status}`);
+      }
+      const data = await res.json();
+      const raw = data?.suggestionsBySlot as Record<string, LlmSuggestion[] | undefined> | undefined;
+      if (!raw || typeof raw !== 'object') throw new Error('Invalid response payload.');
+      const bundles: PersonaSuggestion[][] = roster.map((_, slotIdx) => {
+        const list = Array.isArray(raw[slotIdx]) ? raw[slotIdx] : Array.isArray(raw[`seat_${slotIdx}`]) ? raw[`seat_${slotIdx}`] : [];
+        const normalised = (list as LlmSuggestion[])
+          .slice(0, 8)
+          .map((item, idx): PersonaSuggestion => ({
+            id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `llm-suggestion-${slotIdx}-${idx}`,
+            label:
+              typeof item.label === 'string' && item.label.trim()
+                ? item.label.trim()
+                : typeof item.name === 'string' && item.name.trim()
+                  ? item.name.trim()
+                  : `Persona ${idx + 1}`,
+            origin: typeof item.origin === 'string' && item.origin.trim() ? item.origin.trim() : 'LLM generated',
+            persona:
+              typeof item.persona === 'string' && item.persona.trim()
+                ? item.persona.trim()
+                : 'Offers a distinctive viewpoint to round out the panel.',
+          }));
+        return normalised.length ? normalised : generateFallbackSuggestions(slotIdx, hashString(`${panelKey}|fallback|${slotIdx}`));
+      });
+      return bundles;
+    } catch (error){
+      const bundles = roster.map((_, slotIdx) =>
+        generateFallbackSuggestions(slotIdx, hashString(`${panelKey}|fallback|${slotIdx}`))
+      );
+      setSuggestionError(error instanceof Error ? error.message : 'Failed to generate personas.');
+      return bundles;
+    }
+  }, [generateFallbackSuggestions]);
+
+  useEffect(() => {
+    if (personaPickerTarget === null){
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      setSuggestionError(null);
+      return;
+    }
+
+    const key = panelKey;
+    if (!panelCacheRef.current.has(key)){
+      panelCacheRef.current.set(key, { version: 0 });
+    }
+    const entry = panelCacheRef.current.get(key)!;
+    const { version } = entry;
+
+    const finishWithData = (data: PersonaSuggestion[][]) => {
+      const slotIndex = personaPickerTarget;
+      const slotList = data[slotIndex] || [];
+      const finalList = slotList.length
+        ? slotList
+        : generateFallbackSuggestions(slotIndex, hashString(`${key}|fallback|${slotIndex}`));
+      setLoadingSuggestions(false);
+      setSuggestionError(null);
+      setSuggestions(finalList);
+    };
+
+    if (entry.data){
+      finishWithData(entry.data);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingSuggestions(true);
+    setSuggestionError(null);
+
+    if (!entry.promise){
+      const topicForKey = panelTitle.trim() || initialPanelTitle;
+      entry.promise = fetchPanelSuggestions(key, topicForKey, rosterSnapshot).then(data => {
+        const current = panelCacheRef.current.get(key);
+        if (current && current.version === version){
+          current.data = data;
+          current.promise = undefined;
+        }
+        return data;
+      }).catch(error => {
+        const fallback = rosterSnapshot.map((_, idx) =>
+          generateFallbackSuggestions(idx, hashString(`${key}|fallback|${idx}`))
+        );
+        const current = panelCacheRef.current.get(key);
+        if (current && current.version === version){
+          current.data = fallback;
+          current.promise = undefined;
+        }
+        setSuggestionError(error instanceof Error ? error.message : 'Failed to generate personas.');
+        return fallback;
+      });
+      panelCacheRef.current.set(key, entry);
+    }
+
+    entry.promise!
+      .then(data => {
+        if (cancelled) return;
+        finishWithData(data);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingSuggestions(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [personaPickerTarget, panelKey, rosterSnapshot, fetchPanelSuggestions, generateFallbackSuggestions, panelTitle, panelRefreshNonce]);
+
   useEffect(()=>{
     if (personaPickerTarget === null) return;
     const previousOverflow = document.body.style.overflow;
@@ -194,7 +386,7 @@ export function CustomPanelBuilder({ defaultModel }: Props){
                     </div>
                     <div className="flex gap-2">
                       <button type="button" onClick={()=>resetSlot(index)} className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800">Reset</button>
-                      <button type="button" onClick={()=>setPersonaPickerTarget(index)} className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:opacity-90">Persona ideas</button>
+                      <button type="button" onClick={()=>openPersonaPicker(index)} className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:opacity-90">Persona ideas</button>
                     </div>
                   </div>
                   <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Name</label>
@@ -266,28 +458,66 @@ export function CustomPanelBuilder({ defaultModel }: Props){
           <div className="relative flex w-full max-w-3xl max-h-[85vh] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(2,6,23,0.25)]">
             <button type="button" onClick={closePersonaPicker} className="absolute right-4 top-4 text-slate-400 transition hover:text-slate-600" aria-label="Close persona picker">✕</button>
             <div className="px-6 py-6 overflow-y-auto">
-              <h3 id="persona-picker-title" className="text-xl font-semibold text-slate-900">Pick a persona for Expert {personaPickerTarget + 1}</h3>
-              <p className="mt-1 text-sm text-slate-600">Choose someone to drop into that seat. You can still edit their voice afterward.</p>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {personaSuggestions.map(suggestion => (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <h3 id="persona-picker-title" className="text-xl font-semibold text-slate-900">Pick a persona for Expert {personaPickerTarget + 1}</h3>
+                  <p className="mt-1 text-sm text-slate-600">Generate fresh ideas that align with your panel&rsquo;s focus or reuse an existing legend.</p>
+                </div>
+                <div>
                   <button
-                    key={suggestion.id}
                     type="button"
-                    onClick={()=>{ applySuggestion(personaPickerTarget, suggestion); closePersonaPicker(); }}
-                    className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-slate-400 hover:shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
+                    onClick={()=>{
+                      if (personaPickerTarget === null) return;
+                      const entry = panelCacheRef.current.get(panelKey);
+                      const nextVersion = (entry?.version ?? 0) + 1;
+                      if (entry){
+                        entry.version = nextVersion;
+                        entry.data = undefined;
+                        entry.promise = undefined;
+                      } else {
+                        panelCacheRef.current.set(panelKey, { version: nextVersion });
+                      }
+                      setSuggestionError(null);
+                      setLoadingSuggestions(true);
+                      setPanelRefreshNonce(v => v + 1);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:opacity-60"
+                    disabled={loadingSuggestions}
                   >
-                    <div>
-                      <span className="inline-flex items-center rounded-full bg-slate-900/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-700">{suggestion.origin}</span>
-                      <p className="mt-3 text-base font-semibold text-slate-900">{suggestion.label}</p>
-                      <p className="mt-2 text-sm text-slate-600">{suggestion.persona}</p>
-                    </div>
-                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
-                      Add to Expert {personaPickerTarget + 1}
-                      <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
-                    </span>
+                    {loadingSuggestions ? 'Loading experts…' : 'Refresh tailored personas'}
                   </button>
-                ))}
+                </div>
               </div>
+              {suggestionError && (
+                <p className="mt-4 text-sm text-rose-600">{suggestionError}</p>
+              )}
+              {loadingSuggestions && suggestions.length === 0 && (
+                <p className="mt-6 text-sm text-slate-500">Loading experts…</p>
+              )}
+              {!loadingSuggestions && suggestions.length === 0 ? (
+                <p className="mt-6 text-sm text-slate-500">Tap “Refresh tailored personas” to draft ideas that complement your current lineup.</p>
+              ) : (
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  {suggestions.map(suggestion => (
+                    <button
+                      key={suggestion.id}
+                      type="button"
+                      onClick={()=>{ applySuggestion(personaPickerTarget, suggestion); closePersonaPicker(); }}
+                      className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-slate-400 hover:shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
+                    >
+                      <div>
+                        <span className="inline-flex items-center rounded-full bg-slate-900/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-700">{suggestion.origin}</span>
+                        <p className="mt-3 text-base font-semibold text-slate-900">{suggestion.label}</p>
+                        <p className="mt-2 text-sm text-slate-600">{suggestion.persona}</p>
+                      </div>
+                      <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+                        Add to Expert {personaPickerTarget + 1}
+                        <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
