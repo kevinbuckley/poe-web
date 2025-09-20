@@ -5,13 +5,16 @@ import { marked } from 'marked';
 import { useRouter, useParams } from 'next/navigation';
 
 type Message = { role:'user'|'assistant'|'system'|'expert'|'moderator'; content:string; name?:string; replyToName?: string; replyToQuote?: string; turnId?: string };
+type ExpertBrief = { id:string; name:string; persona:string; model:string };
 
 export default function SessionPage(){
   const router=useRouter();
   const params=useParams();
   const sessionId=(params?.id as string)||'';
   const [history,setHistory]=useState<Message[]>([]);
+  const [experts,setExperts]=useState<ExpertBrief[]>([]);
   const [sseReady,setSseReady]=useState<boolean>(false);
+  const [promptPeek,setPromptPeek]=useState<{ name:string; prompt:string; model:string }|null>(null);
   const inputRef=useRef<HTMLInputElement>(null);
   const activeConnId=useRef<string|null>(null);
   const reconnectTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -27,8 +30,8 @@ export default function SessionPage(){
       const ev=new EventSource(url);
       ev.onopen=()=>console.log('[SSE] open', sessionId);
       ev.onerror=(e)=>{ console.warn('[SSE] error', e); ev.close(); if(aborted || activeConnId.current!==myId) return; if(reconnectTimer.current) clearTimeout(reconnectTimer.current); reconnectTimer.current = setTimeout(()=>{ if(!aborted && activeConnId.current===myId) connect(); }, 1500); };
-      ev.onmessage=(e)=>{ if(aborted || activeConnId.current!==myId) return; const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string };
-    if(data.type==='init'){ setHistory(data.history||[]);} 
+      ev.onmessage=(e)=>{ if(aborted || activeConnId.current!==myId) return; const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string; experts?:ExpertBrief[] };
+    if(data.type==='init'){ setHistory(data.history||[]); if(Array.isArray(data.experts)){ setExperts(data.experts); } } 
     if(data.type==='ready'){ setSseReady(true); }
     if(data.type==='message' && data.message){ setHistory(h=>[...h, data.message!]); }
     if(data.type==='message:prestart' && data.message){
@@ -85,7 +88,13 @@ export default function SessionPage(){
     connect();
     return ()=>{ aborted=true; if (activeConnId.current===myId) activeConnId.current=null; if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current=null; } };
   },[sessionId]);
-
+  useEffect(()=>{
+    if(!promptPeek) return;
+    const onKey=(event: KeyboardEvent)=>{ if(event.key==='Escape') setPromptPeek(null); };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[promptPeek]);
+  
   // Animate thinking dots for any message that is still placeholder (dot-only)
   useEffect(()=>{
     const id=setInterval(()=>{
@@ -125,6 +134,12 @@ export default function SessionPage(){
     } catch{ setHistory(h=>[...h,{role:'system',content:'Network error. Please try again.'}]); }
     finally { if(inputRef.current) inputRef.current.value=''; }
   }
+  const focusPrompt=(expertName?:string)=>{
+    if(!expertName) return;
+    const expert=experts.find(e=>e.name===expertName);
+    if(!expert) return;
+    setPromptPeek({ name:expert.name, model:expert.model, prompt:expert.persona });
+  };
   function renderContentHTML(text: string){ return DOMPurify.sanitize(String(marked.parse(text) || '')); }
   return (
     <main className="min-h-screen" style={{ backgroundColor:'#f6f7f3', backgroundImage:'radial-gradient(#dfe3e0 0.6px, transparent 0.6px)', backgroundSize:'18px 18px', backgroundPosition:'-10px -10px' }}>
@@ -148,7 +163,12 @@ export default function SessionPage(){
               <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'} my-3`} data-testid="chat-row">
                 <div className={`max-w-[75%] ${isUser ? 'bg-slate-900 text-white' : 'bg-white/90 text-slate-900'} rounded-2xl px-4 py-3 shadow-sm border ${isUser ? 'border-slate-900' : 'border-slate-200'} relative`} data-testid={`bubble-${isUser ? 'user' : m.role}`}>
                   {!isUser && (
-                    <div className="mb-1 text-[12px] font-medium text-slate-500" data-testid="bubble-label">{label}</div>
+                    <div className="mb-1 flex items-center justify-between gap-3 text-[12px] font-medium text-slate-500" data-testid="bubble-label">
+                      <span>{label}</span>
+                      {m.role==='expert' && m.name && experts.length>0 && (
+                        <button type="button" onClick={()=>focusPrompt(m.name)} className="rounded-full border border-slate-300 px-2 py-[2px] text-[11px] font-normal text-slate-500 transition hover:border-slate-400 hover:text-slate-700" aria-label={`View ${label}'s personality`}>View Personality</button>
+                      )}
+                    </div>
                   )}
                   <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : ''}`}>
                     <span dangerouslySetInnerHTML={{ __html: renderContentHTML(isThinking ? (`*thinking ${(m.content||'').trim()}*`) : (m.content||'')) }} />
@@ -172,6 +192,19 @@ export default function SessionPage(){
           </div>
         </div>
       </div>
+      {promptPeek && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8 bg-slate-900/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="prompt-dialog-title">
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <button type="button" onClick={()=>setPromptPeek(null)} className="absolute right-3 top-3 text-slate-400 transition hover:text-slate-600" aria-label="Close prompt preview">✕</button>
+            <div className="px-6 py-5">
+              <h3 id="prompt-dialog-title" className="text-lg font-semibold text-slate-900">{promptPeek.name}&apos;s briefing</h3>
+              <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">Model: {promptPeek.model}</p>
+              <pre className="mt-4 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-800">{promptPeek.prompt}</pre>
+              <p className="mt-3 text-xs text-slate-500">Their persona frames how they respond. Share responsibly.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
