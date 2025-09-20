@@ -63,6 +63,7 @@ export default function SessionPage(){
   const inputRef=useRef<HTMLInputElement>(null);
   const activeConnId=useRef<string|null>(null);
   const reconnectTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const setHistorySafe = (value: Message[] | ((prev: Message[]) => Message[])) => {
     setHistory(prev => {
       const next = typeof value === 'function' ? (value as (prev: Message[]) => Message[])(prev) : value;
@@ -78,9 +79,11 @@ export default function SessionPage(){
     activeConnId.current = myId;
     const connect = () => {
       console.log('[SSE] opening', url);
+      try { eventSourceRef.current?.close(); } catch {}
       const ev=new EventSource(url);
+      eventSourceRef.current = ev;
       ev.onopen=()=>console.log('[SSE] open', sessionId);
-      ev.onerror=(e)=>{ console.warn('[SSE] error', e); ev.close(); if(aborted || activeConnId.current!==myId) return; if(reconnectTimer.current) clearTimeout(reconnectTimer.current); reconnectTimer.current = setTimeout(()=>{ if(!aborted && activeConnId.current===myId) connect(); }, 1500); };
+      ev.onerror=(e)=>{ console.warn('[SSE] error', e); try { ev.close(); } catch {}; if (eventSourceRef.current === ev) eventSourceRef.current = null; if(aborted || activeConnId.current!==myId) return; if(reconnectTimer.current) clearTimeout(reconnectTimer.current); reconnectTimer.current = setTimeout(()=>{ if(!aborted && activeConnId.current===myId) connect(); }, 1500); };
       ev.onmessage=(e)=>{ if(aborted || activeConnId.current!==myId) return; const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string; experts?:ExpertBrief[]; title?:string };
     if(data.type==='init'){ setHistorySafe(data.history||[]); if(Array.isArray(data.experts)){ setExperts(data.experts); } if(typeof data.title==='string') setPanelTitle(data.title); } 
     if(data.type==='ready'){ setSseReady(true); }
@@ -137,7 +140,7 @@ export default function SessionPage(){
       };
     };
     connect();
-    return ()=>{ aborted=true; if (activeConnId.current===myId) activeConnId.current=null; if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current=null; } };
+    return ()=>{ aborted=true; if (activeConnId.current===myId) activeConnId.current=null; if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current=null; } try { eventSourceRef.current?.close(); } catch {} eventSourceRef.current = null; };
   },[sessionId]);
   useEffect(()=>{
     if(!promptPeek) return;

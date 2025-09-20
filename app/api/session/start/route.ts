@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextRequest } from 'next/server';
-import { createSession } from '../../../../lib/store/sessions';
+import { createSession, saveSession } from '../../../../lib/store/sessions';
 import { createProvider } from '../../../../lib/providers';
 import type { ExpertAgentConfig } from '../../../../lib/types';
 import { buildPanelPresets, type PanelPresetKey } from '../../../../lib/orchestration/panelPresets';
@@ -50,6 +50,7 @@ export async function POST(req: NextRequest){
     ? (typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Custom Panel')
     : chosen.title;
   session.title = `${baseTitle} – ${new Date().toLocaleString()}`;
+  await saveSession(session);
   // quick provider instantiation check
   createProvider();
   return Response.json({ sessionId: session.id });
@@ -75,6 +76,7 @@ export async function GET(req: NextRequest){
     autoDiscuss: false,
   });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
+  await saveSession(session);
   createProvider();
   const url = new URL('/' + session.id, req.url);
   return Response.redirect(url);
