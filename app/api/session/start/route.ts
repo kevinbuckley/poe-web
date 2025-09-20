@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import { createSession } from '../../../../lib/store/sessions';
 import { createProvider } from '../../../../lib/providers';
+import type { ExpertAgentConfig } from '../../../../lib/types';
 
 export async function POST(req: NextRequest){
   const body = await req.json().catch(()=>({}));
@@ -36,10 +37,26 @@ export async function POST(req: NextRequest){
   };
 
   const chosen = presets[panel] || presets.tech;
-  const experts = Array.isArray(body.experts) && body.experts.length ? body.experts : chosen.experts;
+  const normaliseCustomExperts = () => {
+    if (!Array.isArray(body.experts)) return undefined;
+    const list: ExpertAgentConfig[] = [];
+    for (let idx = 0; idx < Math.min(body.experts.length, 3); idx++){
+      const raw = body.experts[idx] as Partial<ExpertAgentConfig> | undefined;
+      const id = typeof raw?.id === 'string' && raw.id.trim() ? raw.id.trim() : `expert-${idx + 1}`;
+      const name = typeof raw?.name === 'string' && raw.name.trim() ? raw.name.trim() : `Expert ${idx + 1}`;
+      const persona = typeof raw?.persona === 'string' && raw.persona.trim() ? raw.persona.trim() : 'Brings a balanced perspective to the discussion.';
+      const model = typeof raw?.model === 'string' && raw.model.trim() ? raw.model.trim() : defaultModel;
+      list.push({ id, name, persona, provider: 'openai', model });
+    }
+    return list.length ? list : undefined;
+  };
+
+  const customExperts = panel === 'custom' ? normaliseCustomExperts() : undefined;
+  const experts = customExperts || (Array.isArray(body.experts) && body.experts.length ? body.experts : chosen.experts);
   const moderator = body.moderator || { id:'moderator', name:'Moderator', provider:'openai', model: defaultModel, systemPrompt:'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.' };
   const session = await createSession({ experts, moderator, autoDiscuss: !!body.autoDiscuss });
-  session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
+  const baseTitle = customExperts ? (typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Custom Panel') : chosen.title;
+  session.title = `${baseTitle} – ${new Date().toLocaleString()}`;
   // quick provider instantiation check
   createProvider();
   return Response.json({ sessionId: session.id });

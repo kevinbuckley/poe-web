@@ -32,7 +32,7 @@ export async function GET(req: NextRequest){
         try { controller.close(); } catch {}
         return;
       }
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type:'init', history: session.history, experts: session.experts })}\n\n`));
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type:'init', history: session.history, experts: session.experts, title: session.title })}\n\n`));
       // Immediately send a soft ack that SSE is ready so client may post
       try { controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type:'ready' })}\n\n`)); } catch {}
       // Poll events source-of-truth to avoid duplicate delivery with local listeners

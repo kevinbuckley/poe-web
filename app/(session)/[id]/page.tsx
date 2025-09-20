@@ -7,6 +7,49 @@ import { useRouter, useParams } from 'next/navigation';
 type Message = { role:'user'|'assistant'|'system'|'expert'|'moderator'; content:string; name?:string; replyToName?: string; replyToQuote?: string; turnId?: string };
 type ExpertBrief = { id:string; name:string; persona:string; model:string };
 
+const chipSwatches = [
+  'border-sky-200 bg-sky-500/10 text-sky-700 hover:bg-sky-500/15',
+  'border-violet-200 bg-violet-500/10 text-violet-700 hover:bg-violet-500/15',
+  'border-emerald-200 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15',
+  'border-amber-200 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15',
+];
+
+function isThinkingMessage(msg: Message){
+  return msg.role==='expert' && /^\s*\.+$/.test(msg.content||'');
+}
+
+function cleanHistory(messages: Message[]){
+  if (!Array.isArray(messages) || messages.length===0) return messages;
+  const finalTurnIndex = new Map<string, number>();
+  const finalNameIndex = new Map<string, number>();
+  for (let idx=0; idx<messages.length; idx++){
+    const msg = messages[idx];
+    if (msg.role==='expert' && !isThinkingMessage(msg)){
+      if (msg.turnId) finalTurnIndex.set(msg.turnId, idx);
+      if (msg.name) finalNameIndex.set(msg.name, idx);
+    }
+  }
+  const toRemove = new Set<number>();
+  for (let idx=0; idx<messages.length; idx++){
+    const msg = messages[idx];
+    if (!(msg.role==='expert')) continue;
+    if (!isThinkingMessage(msg)) continue;
+    const turnId = msg.turnId;
+    if (turnId && finalTurnIndex.has(turnId) && finalTurnIndex.get(turnId)! > idx){
+      toRemove.add(idx);
+      continue;
+    }
+    if ((!turnId || !finalTurnIndex.has(turnId)) && msg.name){
+      const finalIdx = finalNameIndex.get(msg.name);
+      if (typeof finalIdx === 'number' && finalIdx > idx){
+        toRemove.add(idx);
+      }
+    }
+  }
+  if (!toRemove.size) return messages;
+  return messages.filter((_, index)=> !toRemove.has(index));
+}
+
 export default function SessionPage(){
   const router=useRouter();
   const params=useParams();
@@ -15,9 +58,16 @@ export default function SessionPage(){
   const [experts,setExperts]=useState<ExpertBrief[]>([]);
   const [sseReady,setSseReady]=useState<boolean>(false);
   const [promptPeek,setPromptPeek]=useState<{ name:string; prompt:string; model:string }|null>(null);
+  const [panelTitle,setPanelTitle]=useState<string>('');
   const inputRef=useRef<HTMLInputElement>(null);
   const activeConnId=useRef<string|null>(null);
   const reconnectTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const setHistorySafe = (value: Message[] | ((prev: Message[]) => Message[])) => {
+    setHistory(prev => {
+      const next = typeof value === 'function' ? (value as (prev: Message[]) => Message[])(prev) : value;
+      return cleanHistory(next);
+    });
+  };
   useEffect(()=>{ if (sessionId) localStorage.setItem('poe.sessionId',sessionId); else { const sid=localStorage.getItem('poe.sessionId'); if (sid) router.replace('/'+sid); } },[sessionId, router]);
   useEffect(()=>{
     if(!sessionId) return;
@@ -30,12 +80,12 @@ export default function SessionPage(){
       const ev=new EventSource(url);
       ev.onopen=()=>console.log('[SSE] open', sessionId);
       ev.onerror=(e)=>{ console.warn('[SSE] error', e); ev.close(); if(aborted || activeConnId.current!==myId) return; if(reconnectTimer.current) clearTimeout(reconnectTimer.current); reconnectTimer.current = setTimeout(()=>{ if(!aborted && activeConnId.current===myId) connect(); }, 1500); };
-      ev.onmessage=(e)=>{ if(aborted || activeConnId.current!==myId) return; const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string; experts?:ExpertBrief[] };
-    if(data.type==='init'){ setHistory(data.history||[]); if(Array.isArray(data.experts)){ setExperts(data.experts); } } 
+      ev.onmessage=(e)=>{ if(aborted || activeConnId.current!==myId) return; const data=JSON.parse(e.data) as { type:string; history?:Message[]; message?:Message; role?:string; name?:string; delta?:string; replyToName?:string; replyToQuote?:string; turnId?: string; experts?:ExpertBrief[]; title?:string };
+    if(data.type==='init'){ setHistorySafe(data.history||[]); if(Array.isArray(data.experts)){ setExperts(data.experts); } if(typeof data.title==='string') setPanelTitle(data.title); } 
     if(data.type==='ready'){ setSseReady(true); }
-    if(data.type==='message' && data.message){ setHistory(h=>[...h, data.message!]); }
+    if(data.type==='message' && data.message){ setHistorySafe(h=>[...h, data.message!]); }
     if(data.type==='message:prestart' && data.message){
-      setHistory(h=>{
+      setHistorySafe(h=>{
         // Avoid duplicate placeholders for the same expert before turnId is known
         const already = [...h].reverse().find(m=> m.role==='expert' && m.name===data.message!.name && !m.turnId && /^\s*\.+$/.test(m.content||''));
         if (already) return h;
@@ -44,7 +94,7 @@ export default function SessionPage(){
       });
     }
     if(data.type==='message:start' && data.message && data.message.name){
-      setHistory(h=>{
+      setHistorySafe(h=>{
         const copy=[...h];
         let targetIndex=-1;
         for(let i=copy.length-1;i>=0;i--){
@@ -67,7 +117,7 @@ export default function SessionPage(){
         return copy;
       });
     }
-    if(data.type==='message:delta' && data.role && data.name && data.delta){ setHistory(h=>{ const copy=[...h]; for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.role && m.name===data.name && (!data.turnId || m.turnId===data.turnId)){
+    if(data.type==='message:delta' && data.role && data.name && data.delta){ setHistorySafe(h=>{ const copy=[...h]; for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.role && m.name===data.name && (!data.turnId || m.turnId===data.turnId)){
           // advance thinking animation if still placeholder
           if(/^\s*\.+$/.test(m.content||'')){
             const dots=(m.content||'').length % 4; // 1..3 cycle, 0 -> 4
@@ -80,7 +130,7 @@ export default function SessionPage(){
           break;
         } }
         return copy; }); }
-    if(data.type==='message:end' && data.message){ setHistory(h=>{ const copy=[...h];
+    if(data.type==='message:end' && data.message){ setHistorySafe(h=>{ const copy=[...h];
         for(let i=copy.length-1;i>=0;i--){ const m=copy[i]; if(m.role===data.message!.role && m.name===data.message!.name && (!data.turnId || m.turnId===data.turnId)){ copy[i] = { ...(data.message as Message), turnId: data.turnId || m.turnId, replyToName: data.replyToName || m.replyToName, replyToQuote: data.replyToQuote || m.replyToQuote }; break; } }
         return copy; }); }
       };
@@ -98,10 +148,11 @@ export default function SessionPage(){
   // Animate thinking dots for any message that is still placeholder (dot-only)
   useEffect(()=>{
     const id=setInterval(()=>{
-      setHistory(h=>{
+      setHistory(prev=>{
+        const h=prev;
         let changed=false;
         const next=h.map(m=>{
-          if(m.role==='expert' && /^\s*\.+$/.test(m.content||'')){
+          if(isThinkingMessage(m)){
             const dots=(m.content||'').trim().length; // 1..4
             const nextDots = '.'.repeat(dots===4?1:dots+1);
             changed=true;
@@ -109,7 +160,8 @@ export default function SessionPage(){
           }
           return m;
         });
-        return changed ? next : h;
+        const base = changed ? cleanHistory(next) : h;
+        return base;
       });
     }, 350);
     return ()=>clearInterval(id);
@@ -118,7 +170,7 @@ export default function SessionPage(){
     const content=inputRef.current?.value||'';
     if(!content) return;
     // Optimistically render the user's message in the chat list
-    setHistory(h=>[...h,{ role:'user', content } as Message]);
+    setHistorySafe(h=>[...h,{ role:'user', content } as Message]);
     // Wait briefly for SSE init to ensure session is visible to backend (deploy consistency)
     if(!sseReady){
       const start=Date.now();
@@ -127,11 +179,11 @@ export default function SessionPage(){
     try{
       const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId, content})});
       const ct=r.headers.get('content-type')||'';
-      if(!r.ok){ const msg=await r.text().catch(()=>'' ); setHistory(h=>[...h,{role:'system',content:`Error: ${msg||r.statusText}`}]); return; }
+      if(!r.ok){ const msg=await r.text().catch(()=>'' ); setHistorySafe(h=>[...h,{role:'system',content:`Error: ${msg||r.statusText}`}]); return; }
       const j = ct.includes('application/json') ? await r.json() : { text: await r.text(), history: [] };
-      if (j && Array.isArray(j.history)) setHistory(j.history as Message[]);
-      else if (j && typeof j.text==='string') setHistory(h=>[...h,{role:'assistant',content:String(j.text)}]);
-    } catch{ setHistory(h=>[...h,{role:'system',content:'Network error. Please try again.'}]); }
+      if (j && Array.isArray(j.history)) setHistorySafe(j.history as Message[]);
+      else if (j && typeof j.text==='string') setHistorySafe(h=>[...h,{role:'assistant',content:String(j.text)}]);
+    } catch{ setHistorySafe(h=>[...h,{role:'system',content:'Network error. Please try again.'}]); }
     finally { if(inputRef.current) inputRef.current.value=''; }
   }
   const focusPrompt=(expertName?:string)=>{
@@ -154,14 +206,56 @@ export default function SessionPage(){
           <h2 className="text-slate-600 italic md:text-[24px] md:text-base max-w-[28ch] mx-auto">your experts will speak in turn</h2>
         </header>
 
+        {experts.length>0 && (
+          <section className="relative mb-12 w-full max-w-4xl">
+            <div className="relative overflow-hidden rounded-[36px] border border-slate-200 bg-white/85 px-6 py-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(15,118,110,0.08),transparent_55%)] opacity-80" />
+              <div className="relative flex flex-col gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Active panel</p>
+                  <div className="mt-2 flex flex-wrap items-baseline gap-3">
+                    <h3 className="text-2xl font-semibold text-slate-900">{panelTitle ? panelTitle.split('–')[0].trim() : 'Active Session'}</h3>
+                    {panelTitle && panelTitle.includes('–') && (
+                      <span className="text-sm text-slate-400">{panelTitle.split('–').slice(1).join('–').trim()}</span>
+                    )}
+                  </div>
+                  <p className="mt-3 text-sm text-slate-500">
+                    Tap an expert to peek at their persona or ask your next question to hear a new round.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2.5">
+                  {experts.map((expert, idx)=>{
+                    const chipClass = chipSwatches[idx % chipSwatches.length];
+                    return (
+                      <button
+                        key={expert.id || expert.name}
+                        type="button"
+                        onClick={()=>focusPrompt(expert.name)}
+                        className={`group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${chipClass}`}
+                        aria-label={`View ${expert.name}'s personality`}
+                      >
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 text-xs font-semibold text-slate-700 shadow-sm">
+                          {(expert.name || '?').trim().charAt(0) || '?'}
+                        </span>
+                        <span className="pr-1 text-left">{expert.name}</span>
+                        <span className="text-xs font-medium text-slate-500 transition group-hover:text-slate-600">View</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="w-full max-w-4xl pb-40" data-testid="chat-list">
           {history.map((m,i)=> {
             const isUser = m.role === 'user';
             const label = m.name || (m.role.charAt(0).toUpperCase() + m.role.slice(1));
-            const isThinking = m.role==='expert' && /^\s*\.+$/.test(m.content||'');
+            const isThinking = isThinkingMessage(m);
             return (
               <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'} my-3`} data-testid="chat-row">
-                <div className={`max-w-[75%] ${isUser ? 'bg-slate-900 text-white' : 'bg-white/90 text-slate-900'} rounded-2xl px-4 py-3 shadow-sm border ${isUser ? 'border-slate-900' : 'border-slate-200'} relative`} data-testid={`bubble-${isUser ? 'user' : m.role}`}>
+                <div className={`max-w-[75%] ${isUser ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-[0_15px_32px_rgba(15,23,42,0.38)] border border-transparent' : 'bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.12)] border border-slate-100'} rounded-3xl px-5 py-4 relative`} data-testid={`bubble-${isUser ? 'user' : m.role}`}>
                   {!isUser && (
                     <div className="mb-1 flex items-center justify-between gap-3 text-[12px] font-medium text-slate-500" data-testid="bubble-label">
                       <span>{label}</span>
