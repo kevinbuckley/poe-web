@@ -10,7 +10,13 @@ export class AgenticLoop {
   async step(userMessage?: string) {
     if (userMessage) {
       this.session.history.push({ role: "user", content: userMessage });
+      if (this.session.status !== "active") {
+        this.session.status = "active";
+      }
       await saveSession(this.session);
+    }
+    if (this.session.status !== "active") {
+      this.session.status = "active";
     }
     const panelReplies: { name: string; content: string }[] = [];
     for (let idx = 0; idx < this.session.experts.length; idx++) {

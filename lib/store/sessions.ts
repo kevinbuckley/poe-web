@@ -1,7 +1,9 @@
 import { Redis } from "@upstash/redis";
 import { randomUUID } from "node:crypto";
 
+import { buildPanelPresets, type PanelPresetKey } from "../orchestration/panelPresets";
 import type { ConversationSession, ExpertAgentConfig, ModeratorConfig } from "../types";
+import { archiveSessionSnapshot } from "./archive";
 
 type ListenerMap = Map<string, Set<(data: string) => void>>;
 
@@ -23,7 +25,12 @@ const TTL_DEFAULT_SECONDS = 60 * 60 * 6; // 6 hours retains recent sessions with
 const parsedTtl = Number(process.env.SESSION_TTL_SECONDS);
 const SESSION_TTL_SECONDS = Number.isFinite(parsedTtl) && parsedTtl > 0 ? Math.floor(parsedTtl) : TTL_DEFAULT_SECONDS;
 
-const HISTORY_DEFAULT = 30;
+const DRAFT_TTL_DEFAULT_SECONDS = 15 * 60; // 15 minutes for unopened sessions
+const parsedDraftTtl = Number(process.env.SESSION_DRAFT_TTL_SECONDS);
+const SESSION_DRAFT_TTL_SECONDS =
+  Number.isFinite(parsedDraftTtl) && parsedDraftTtl > 0 ? Math.floor(parsedDraftTtl) : DRAFT_TTL_DEFAULT_SECONDS;
+
+const HISTORY_DEFAULT = 120;
 const parsedHistory = Number(process.env.SESSION_MAX_HISTORY);
 const SESSION_MAX_HISTORY = Number.isFinite(parsedHistory) && parsedHistory > 0 ? Math.min(Math.floor(parsedHistory), 1000) : HISTORY_DEFAULT;
 
@@ -45,24 +52,66 @@ const memEvents = g.__poe_memEvents ?? (g.__poe_memEvents = new Map<string, stri
 const sessKey = (id: string) => `sess:${id}`;
 const evKey = (id: string) => `sess:${id}:events`;
 
-function trimSessionHistory(session: ConversationSession): void {
-  if (!Array.isArray(session.history)) {
-    session.history = [];
-    return;
+function compactHistory(history: ConversationSession["history"]): ConversationSession["history"] {
+  if (!Array.isArray(history) || history.length === 0) return [];
+  const startIndex = history.length > SESSION_MAX_HISTORY ? history.length - SESSION_MAX_HISTORY : 0;
+  const sliced = history.slice(startIndex);
+  return sliced.map(item => ({
+    role: item.role,
+    content: item.content,
+    ...(item.name ? { name: item.name } : {}),
+  }));
+}
+
+function buildPresetExperts(key: PanelPresetKey | undefined, modelHint: string | undefined): ExpertAgentConfig[] {
+  if (!key) return [];
+  const defaultModel = modelHint && modelHint.trim() ? modelHint : process.env.DEFAULT_MODEL || "gpt-4.1-nano";
+  const preset = buildPanelPresets(defaultModel)[key];
+  if (!preset) return [];
+  return preset.experts.map(expert => ({ ...expert }));
+}
+
+function prepareForPersistence(session: ConversationSession): { record: ConversationSession; ttl: number } {
+  const baseHistory = compactHistory(session.history);
+  session.history = baseHistory;
+  if (!session.status) session.status = session.history.length > 0 ? "active" : "draft";
+  const ttl = session.status === "active" ? SESSION_TTL_SECONDS : SESSION_DRAFT_TTL_SECONDS;
+  const base: ConversationSession = {
+    ...session,
+    history: baseHistory,
+  };
+  if (session.panelPresetKey) {
+    return { record: { ...base, experts: [] }, ttl };
   }
-  if (session.history.length > SESSION_MAX_HISTORY) {
-    session.history = session.history.slice(-SESSION_MAX_HISTORY);
-  }
+  return { record: base, ttl };
+}
+
+function hydrateSession(record: ConversationSession | null): ConversationSession | null {
+  if (!record) return null;
+  const history = Array.isArray(record.history) ? record.history.map(item => ({ ...item })) : [];
+  const status = record.status ?? (history.length > 0 ? "active" : "draft");
+  const panelPresetKey = record.panelPresetKey;
+  const experts = record.experts && record.experts.length > 0
+    ? record.experts.map(expert => ({ ...expert }))
+    : buildPresetExperts(panelPresetKey as PanelPresetKey | undefined, record.moderator?.model);
+  return {
+    ...record,
+    status,
+    history,
+    experts,
+  };
 }
 
 async function persistSession(session: ConversationSession): Promise<void> {
-  trimSessionHistory(session);
+  const { record, ttl } = prepareForPersistence(session);
   if (haveRedis && redis) {
-    await redis.set(sessKey(session.id), session, { ex: SESSION_TTL_SECONDS });
-    return;
+    await redis.set(sessKey(session.id), record, { ex: ttl });
+  } else {
+    memSessions.set(session.id, record);
   }
-
-  memSessions.set(session.id, session);
+  if (record.status === "active" && record.history.length >= SESSION_MAX_HISTORY) {
+    void archiveSessionSnapshot({ ...record, experts: session.experts });
+  }
 }
 
 export async function createSession(init: {
@@ -70,6 +119,7 @@ export async function createSession(init: {
   experts: ExpertAgentConfig[];
   moderator: ModeratorConfig;
   autoDiscuss?: boolean;
+  panelPresetKey?: PanelPresetKey;
 }): Promise<ConversationSession> {
   const id = randomUUID();
   const session: ConversationSession = {
@@ -79,6 +129,8 @@ export async function createSession(init: {
     moderator: init.moderator,
     autoDiscuss: Boolean(init.autoDiscuss),
     history: [],
+    panelPresetKey: init.panelPresetKey,
+    status: "draft",
   };
 
   await persistSession(session);
@@ -95,44 +147,24 @@ export async function getSession(id: string): Promise<ConversationSession | null
 
   if (haveRedis && redis) {
     const stored = await redis.get<ConversationSession>(sessKey(id));
-    return stored ?? null;
+    return hydrateSession(stored ?? null);
   }
 
-  return memSessions.get(id) ?? null;
+  return hydrateSession(memSessions.get(id) ?? null);
 }
 
 export async function resetSession(id: string): Promise<void> {
-  if (!id) return;
-
-  if (haveRedis && redis) {
-    const session = await redis.get<ConversationSession>(sessKey(id));
-    if (!session) return;
-    session.history = [];
-    await persistSession(session);
-    return;
-  }
-
-  const session = memSessions.get(id);
+  const session = await getSession(id);
   if (!session) return;
   session.history = [];
-  memSessions.set(id, session);
+  await saveSession(session);
 }
 
 export async function setAutoDiscuss(id: string, value: boolean): Promise<void> {
-  if (!id) return;
-
-  if (haveRedis && redis) {
-    const session = await redis.get<ConversationSession>(sessKey(id));
-    if (!session) return;
-    session.autoDiscuss = value;
-    await persistSession(session);
-    return;
-  }
-
-  const session = memSessions.get(id);
+  const session = await getSession(id);
   if (!session) return;
   session.autoDiscuss = value;
-  memSessions.set(id, session);
+  await saveSession(session);
 }
 
 // SSE helpers
@@ -155,20 +187,21 @@ export function emitSessionEvent(sessionId: string, payload: unknown): void {
     for (const listener of set) listener(data);
   }
 
-  if (haveRedis && redis) {
-    void redis
-      .rpush(evKey(sessionId), data)
-      .then(() => redis!.ltrim(evKey(sessionId), -EVENT_BUFFER_LIMIT, -1))
-      .catch(() => {});
-    return;
-  }
-
   const arr = memEvents.get(sessionId) ?? [];
   arr.push(data);
   if (arr.length > EVENT_BUFFER_LIMIT) {
     arr.splice(0, arr.length - EVENT_BUFFER_LIMIT);
   }
   memEvents.set(sessionId, arr);
+
+  const eventType = typeof payload === "object" && payload !== null ? (payload as { type?: string }).type : undefined;
+  const shouldPersist = eventType === "message:end" || eventType === "message" || eventType === "message:start";
+  if (shouldPersist && haveRedis && redis) {
+    void redis
+      .rpush(evKey(sessionId), data)
+      .then(() => redis!.ltrim(evKey(sessionId), -EVENT_BUFFER_LIMIT, -1))
+      .catch(() => {});
+  }
 }
 
 // Helpers for SSE polling

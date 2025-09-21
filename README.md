@@ -33,6 +33,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Sample hot keys via `redis-cli --scan | head` and `MEMORY USAGE keyname` to spot large payloads. Adjust `SESSION_MAX_HISTORY` if transcripts need to retain more (or less) turns.
 - Update the environment variables in `.env.local` (or your deployment settings) and redeploy to change retention without code edits.
 - After changes, re-run the usage checks to validate the effect and watch for eviction or latency shifts.
+- `SESSION_DRAFT_TTL_SECONDS` lets you expire never-used sessions quickly, and `SESSION_ARCHIVE_DIR` (optional) captures capped transcripts to disk when histories hit the configured limit.
 
 ## Learn More
 

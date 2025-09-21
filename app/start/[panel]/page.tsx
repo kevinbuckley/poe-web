@@ -27,7 +27,7 @@ export default async function StartPanelPage({ params }: StartPanelParams) {
     systemPrompt:
       "Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.",
   };
-  const session = await createSession({ experts: chosen.experts, moderator, autoDiscuss: false });
+  const session = await createSession({ experts: chosen.experts, moderator, autoDiscuss: false, panelPresetKey: panelKey });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
   await saveSession(session);
   // Force provider warm-up so first call is fast; ignore result

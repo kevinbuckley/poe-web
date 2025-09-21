@@ -35,7 +35,8 @@ export async function POST(req: NextRequest){
     return list.length ? list : undefined;
   };
 
-  const customExperts = panelKey === 'custom' ? normaliseCustomExperts() : undefined;
+  const isCustomPanel = panelKey === 'custom';
+  const customExperts = isCustomPanel ? normaliseCustomExperts() : undefined;
   const experts = customExperts || (Array.isArray(body.experts) && body.experts.length ? body.experts : chosen.experts);
   const moderator = body.moderator || {
     id: 'moderator',
@@ -45,7 +46,12 @@ export async function POST(req: NextRequest){
     systemPrompt:
       'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.',
   };
-  const session = await createSession({ experts, moderator, autoDiscuss: !!body.autoDiscuss });
+  const session = await createSession({
+    experts,
+    moderator,
+    autoDiscuss: !!body.autoDiscuss,
+    panelPresetKey: isCustomPanel ? undefined : (panelKey as PanelPresetKey),
+  });
   const baseTitle = customExperts
     ? (typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Custom Panel')
     : chosen.title;
@@ -74,6 +80,7 @@ export async function GET(req: NextRequest){
         'Be friendly and human. Make sure the user’s question is clearly answered. If anything is missing, briefly ask a follow-up. Keep it concise and conversational.',
     },
     autoDiscuss: false,
+    panelPresetKey: panel as PanelPresetKey,
   });
   session.title = `${chosen.title} – ${new Date().toLocaleString()}`;
   await saveSession(session);
