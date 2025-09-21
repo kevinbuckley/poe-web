@@ -18,7 +18,16 @@ const listeners: ListenerMap = g.__poe_listeners ?? (g.__poe_listeners = new Map
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
 const haveRedis = Boolean(REDIS_URL && REDIS_TOKEN);
-const SESSION_TTL_SECONDS = 60 * 60 * 24; // 24h
+
+const TTL_DEFAULT_SECONDS = 60 * 60 * 6; // 6 hours retains recent sessions without long tail storage
+const parsedTtl = Number(process.env.SESSION_TTL_SECONDS);
+const SESSION_TTL_SECONDS = Number.isFinite(parsedTtl) && parsedTtl > 0 ? Math.floor(parsedTtl) : TTL_DEFAULT_SECONDS;
+
+const HISTORY_DEFAULT = 30;
+const parsedHistory = Number(process.env.SESSION_MAX_HISTORY);
+const SESSION_MAX_HISTORY = Number.isFinite(parsedHistory) && parsedHistory > 0 ? Math.min(Math.floor(parsedHistory), 1000) : HISTORY_DEFAULT;
+
+const EVENT_BUFFER_LIMIT = 500;
 
 export function storageMode(): "redis" | "memory" {
   return haveRedis ? "redis" : "memory";
@@ -36,7 +45,18 @@ const memEvents = g.__poe_memEvents ?? (g.__poe_memEvents = new Map<string, stri
 const sessKey = (id: string) => `sess:${id}`;
 const evKey = (id: string) => `sess:${id}:events`;
 
+function trimSessionHistory(session: ConversationSession): void {
+  if (!Array.isArray(session.history)) {
+    session.history = [];
+    return;
+  }
+  if (session.history.length > SESSION_MAX_HISTORY) {
+    session.history = session.history.slice(-SESSION_MAX_HISTORY);
+  }
+}
+
 async function persistSession(session: ConversationSession): Promise<void> {
+  trimSessionHistory(session);
   if (haveRedis && redis) {
     await redis.set(sessKey(session.id), session, { ex: SESSION_TTL_SECONDS });
     return;
@@ -138,14 +158,16 @@ export function emitSessionEvent(sessionId: string, payload: unknown): void {
   if (haveRedis && redis) {
     void redis
       .rpush(evKey(sessionId), data)
-      .then(() => redis!.ltrim(evKey(sessionId), -2000, -1))
+      .then(() => redis!.ltrim(evKey(sessionId), -EVENT_BUFFER_LIMIT, -1))
       .catch(() => {});
     return;
   }
 
   const arr = memEvents.get(sessionId) ?? [];
   arr.push(data);
-  if (arr.length > 2000) arr.shift();
+  if (arr.length > EVENT_BUFFER_LIMIT) {
+    arr.splice(0, arr.length - EVENT_BUFFER_LIMIT);
+  }
   memEvents.set(sessionId, arr);
 }
 

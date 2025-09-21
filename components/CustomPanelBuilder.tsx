@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { buildPanelPresets } from '../lib/orchestration/panelPresets';
+import { useLocalStorageState } from '../lib/hooks/useLocalStorageState';
 
 type Props = { defaultModel: string };
 type ExpertDraft = { id: string; name: string; persona: string };
+type PanelDraft = { title: string; experts: ExpertDraft[] };
 
 type PersonaSuggestion = {
   id: string;
@@ -39,6 +41,11 @@ const templateExperts: ExpertDraft[] = [
 const initialPanelTitle = 'My Custom Panel';
 const initialPanelGoal = 'Keep the conversation on the outcomes that matter most.';
 
+const createDefaultDraft = (): PanelDraft => ({
+  title: initialPanelTitle,
+  experts: templateExperts.map(expert => ({ ...expert })),
+});
+
 const formatList = (items: string[]) => {
   if (!items.length) return '';
   if (items.length === 1) return items[0];
@@ -56,10 +63,20 @@ const hashString = (input: string) => {
 
 export function CustomPanelBuilder({ defaultModel }: Props){
   const router = useRouter();
+  const [draft, setDraft, resetDraft] = useLocalStorageState<PanelDraft>('poe.customPanelDraft', createDefaultDraft);
   const [step, setStep] = useState(0);
-  const [panelTitle, setPanelTitle] = useState(initialPanelTitle);
+  const [panelTitle, setPanelTitle] = useState(() => (typeof draft.title === 'string' ? draft.title : initialPanelTitle));
   const panelGoal = initialPanelGoal;
-  const [experts, setExperts] = useState<ExpertDraft[]>(() => templateExperts.map(expert => ({ ...expert })));
+  const [experts, setExperts] = useState<ExpertDraft[]>(() => {
+    const base = Array.isArray(draft.experts) && draft.experts.length
+      ? draft.experts
+      : templateExperts;
+    return base.slice(0, templateExperts.length).map((expert, index) => ({
+      id: expert?.id || `expert-${index + 1}`,
+      name: typeof expert?.name === 'string' && expert.name.trim() ? expert.name : templateExperts[index].name,
+      persona: typeof expert?.persona === 'string' && expert.persona.trim() ? expert.persona : templateExperts[index].persona,
+    }));
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [personaPickerTarget, setPersonaPickerTarget] = useState<number | null>(null);
@@ -73,6 +90,42 @@ export function CustomPanelBuilder({ defaultModel }: Props){
     name: expert.name.trim(),
     persona: expert.persona.trim(),
   })), [experts]);
+
+  useEffect(() => {
+    setDraft(prev => {
+      const sameTitle = prev.title === panelTitle;
+      const sameExperts = Array.isArray(prev.experts)
+        && prev.experts.length === experts.length
+        && prev.experts.every((expert, idx) => {
+          const current = experts[idx];
+          return (
+            expert.id === current.id
+            && expert.name === current.name
+            && expert.persona === current.persona
+          );
+        });
+      if (sameTitle && sameExperts) {
+        return prev;
+      }
+      return {
+        title: panelTitle,
+        experts: experts.map(expert => ({ ...expert })),
+      };
+    });
+  }, [experts, panelTitle, setDraft]);
+
+  const resetPanelDraft = useCallback(() => {
+    const defaults = createDefaultDraft();
+    setPanelTitle(defaults.title);
+    setExperts(defaults.experts.map(expert => ({ ...expert })));
+    setStep(0);
+    setError(null);
+    setSuggestionError(null);
+    setSuggestions([]);
+    setPersonaPickerTarget(null);
+    setPanelRefreshNonce(n => n + 1);
+    resetDraft();
+  }, [resetDraft, setPanelTitle, setExperts, setStep, setError, setSuggestionError, setSuggestions, setPersonaPickerTarget, setPanelRefreshNonce]);
 
   const totalSteps = 2;
   const progress = useMemo(() => ((step + 1) / totalSteps) * 100, [step]);
@@ -356,7 +409,17 @@ export function CustomPanelBuilder({ defaultModel }: Props){
         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200/70">
           <div className="h-full bg-gradient-to-r from-slate-900 via-sky-700 to-emerald-600 transition-all" style={{ width: `${progress}%` }} />
         </div>
-        <p className="mt-2 text-sm text-slate-500">Step {step + 1} of 2</p>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">Step {step + 1} of 2</p>
+          <button
+            type="button"
+            onClick={resetPanelDraft}
+            className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 transition hover:border-slate-400 hover:text-slate-800 disabled:opacity-50"
+            disabled={submitting}
+          >
+            Reset panel draft
+          </button>
+        </div>
       </div>
 
       <div className="rounded-[32px] border border-slate-200 bg-white/90 backdrop-blur-sm shadow-[0_24px_55px_rgba(15,23,42,0.12)] p-8">

@@ -27,6 +27,13 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Redis Usage & Tuning
+
+- Inspect current usage with `redis-cli INFO memory` or the Upstash dashboard to confirm the trimmed TTL (`SESSION_TTL_SECONDS`) meets your needs.
+- Sample hot keys via `redis-cli --scan | head` and `MEMORY USAGE keyname` to spot large payloads. Adjust `SESSION_MAX_HISTORY` if transcripts need to retain more (or less) turns.
+- Update the environment variables in `.env.local` (or your deployment settings) and redeploy to change retention without code edits.
+- After changes, re-run the usage checks to validate the effect and watch for eviction or latency shifts.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
