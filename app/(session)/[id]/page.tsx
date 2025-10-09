@@ -60,6 +60,9 @@ export default function SessionPage(){
   const [sseReady,setSseReady]=useState<boolean>(false);
   const [promptPeek,setPromptPeek]=useState<{ name:string; prompt:string; model:string }|null>(null);
   const [panelTitle,setPanelTitle]=useState<string>('');
+  const [mentionQuery,setMentionQuery]=useState<string>('');
+  const [showMentionSuggestions,setShowMentionSuggestions]=useState<boolean>(false);
+  const [selectedMentionIndex,setSelectedMentionIndex]=useState<number>(-1);
   const inputRef=useRef<HTMLInputElement>(null);
   const activeConnId=useRef<string|null>(null);
   const reconnectTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -203,7 +206,108 @@ export default function SessionPage(){
     if(!expert) return;
     setPromptPeek({ name:expert.name, model:expert.model, prompt:expert.persona });
   };
-  function renderContentHTML(text: string){ return DOMPurify.sanitize(String(marked.parse(text) || '')); }
+
+  // Filter experts for @ mention suggestions
+  const getMentionSuggestions = () => {
+    if (!mentionQuery.trim()) return experts;
+    const query = mentionQuery.toLowerCase();
+    return experts.filter(expert => 
+      expert.name.toLowerCase().includes(query) ||
+      expert.id.toLowerCase().includes(query) ||
+      expert.name.split(' ')[0].toLowerCase().includes(query) ||
+      expert.name.split('(')[0].trim().toLowerCase().includes(query)
+    );
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPos);
+    
+    // Check if we're in a @ mention context
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (mentionMatch) {
+      const query = mentionMatch[1];
+      setMentionQuery(query);
+      setShowMentionSuggestions(true);
+      setSelectedMentionIndex(-1);
+    } else {
+      setShowMentionSuggestions(false);
+      setMentionQuery('');
+    }
+  };
+
+  const insertMention = (expertName: string) => {
+    if (!inputRef.current) return;
+    
+    const input = inputRef.current;
+    const cursorPos = input.selectionStart || 0;
+    const value = input.value;
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const textAfterCursor = value.substring(cursorPos);
+    
+    // Find the @ mention start position
+    const mentionStart = textBeforeCursor.lastIndexOf('@');
+    const beforeMention = value.substring(0, mentionStart);
+    const afterMention = textAfterCursor;
+    
+    // Insert the expert name
+    const newValue = beforeMention + '@' + expertName + ' ' + afterMention;
+    input.value = newValue;
+    
+    // Set cursor position after the mention
+    const newCursorPos = beforeMention.length + expertName.length + 2;
+    input.setSelectionRange(newCursorPos, newCursorPos);
+    
+    // Close suggestions
+    setShowMentionSuggestions(false);
+    setMentionQuery('');
+    input.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showMentionSuggestions) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        send();
+      }
+      return;
+    }
+
+    const suggestions = getMentionSuggestions();
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedMentionIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedMentionIndex(prev => 
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedMentionIndex >= 0 && selectedMentionIndex < suggestions.length) {
+          insertMention(suggestions[selectedMentionIndex].name);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowMentionSuggestions(false);
+        setMentionQuery('');
+        break;
+    }
+  };
+  function renderContentHTML(text: string){ 
+    // Highlight @ mentions in user messages
+    const highlightedText = text.replace(/@(\w+)/g, '<span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs font-medium">@$1</span>');
+    return DOMPurify.sanitize(String(marked.parse(highlightedText) || '')); 
+  }
   const startOver = () => {
     try { localStorage.removeItem('poe.sessionId'); } catch {}
     router.push('/');
@@ -241,7 +345,7 @@ export default function SessionPage(){
                     )}
                   </div>
                   <p className="mt-3 text-sm text-slate-500">
-                    Tap an expert to peek at their persona or ask your next question to hear a new round.
+                    Tap an expert to peek at their persona or ask your next question to hear a new round. Use @expertname to have a specific expert respond first.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2.5">
@@ -295,15 +399,48 @@ export default function SessionPage(){
         </div>
 
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-32px)] max-w-3xl">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-4 py-3 shadow-[0_8px_24px_rgba(2,6,23,0.12)] flex items-center gap-3">
-            <input
-              ref={inputRef}
-              placeholder="Say something"
-              onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } }}
-              className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            />
-            <span className="text-xs text-slate-500 hidden sm:inline">Press Enter to send</span>
-            <button onClick={send} className="inline-flex items-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-medium shadow-sm hover:opacity-90 active:opacity-80 transition">Send</button>
+          <div className="relative">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-4 py-3 shadow-[0_8px_24px_rgba(2,6,23,0.12)] flex items-center gap-3">
+              <input
+                ref={inputRef}
+                placeholder="Say something (use @expertname to tag)"
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              />
+              <span className="text-xs text-slate-500 hidden sm:inline">Press Enter to send</span>
+              <button onClick={send} className="inline-flex items-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-medium shadow-sm hover:opacity-90 active:opacity-80 transition">Send</button>
+            </div>
+            
+            {/* @ Mention Autocomplete Dropdown */}
+            {showMentionSuggestions && getMentionSuggestions().length > 0 && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                {getMentionSuggestions().map((expert, index) => (
+                  <button
+                    key={expert.id}
+                    type="button"
+                    onClick={() => insertMention(expert.name)}
+                    className={`w-full px-4 py-3 text-left text-sm transition-colors ${
+                      index === selectedMentionIndex
+                        ? 'bg-blue-50 text-blue-900'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                        {expert.name.charAt(0)}
+                      </span>
+                      <div>
+                        <div className="font-medium">{expert.name}</div>
+                        <div className="text-xs text-slate-500 truncate max-w-[200px]">
+                          {expert.persona.substring(0, 60)}...
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

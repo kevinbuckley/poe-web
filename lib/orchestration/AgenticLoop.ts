@@ -18,9 +18,13 @@ export class AgenticLoop {
     if (this.session.status !== "active") {
       this.session.status = "active";
     }
+    
+    // Parse @ mentions and reorder experts
+    const orderedExperts = this.reorderExpertsByMentions(userMessage);
+    
     const panelReplies: { name: string; content: string }[] = [];
-    for (let idx = 0; idx < this.session.experts.length; idx++) {
-      const expert = this.session.experts[idx];
+    for (let idx = 0; idx < orderedExperts.length; idx++) {
+      const expert = orderedExperts[idx];
       const prior = panelReplies[idx - 1];
       const priorSnippet = this.buildPriorSnippet(prior?.content);
       const system = this.buildSystemMessage(expert.name, expert.persona);
@@ -40,6 +44,47 @@ export class AgenticLoop {
       panelReplies.push({ name: expert.name, content });
     }
     return panelReplies[panelReplies.length - 1]?.content || '';
+  }
+
+  private reorderExpertsByMentions(userMessage?: string) {
+    if (!userMessage) return this.session.experts;
+    
+    // Parse @ mentions from the user message
+    const mentionPattern = /@(\w+)/g;
+    const mentions: string[] = [];
+    let match;
+    while ((match = mentionPattern.exec(userMessage)) !== null) {
+      mentions.push(match[1]);
+    }
+    
+    if (mentions.length === 0) return this.session.experts;
+    
+    // Find mentioned experts and reorder them to the front
+    const mentionedExperts = [];
+    const remainingExperts = [];
+    
+    for (const expert of this.session.experts) {
+      const isMentioned = mentions.some(mention => {
+        const mentionLower = mention.toLowerCase();
+        const nameLower = expert.name.toLowerCase();
+        const idLower = expert.id.toLowerCase();
+        
+        // Match by full name, first name, or ID
+        return nameLower.includes(mentionLower) ||
+               idLower.includes(mentionLower) ||
+               nameLower.split(' ')[0].includes(mentionLower) ||
+               nameLower.split('(')[0].trim().toLowerCase().includes(mentionLower);
+      });
+      
+      if (isMentioned) {
+        mentionedExperts.push(expert);
+      } else {
+        remainingExperts.push(expert);
+      }
+    }
+    
+    // Return mentioned experts first, then the rest in original order
+    return [...mentionedExperts, ...remainingExperts];
   }
 
   private buildPriorSnippet(priorContent?: string){
