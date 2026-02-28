@@ -12,7 +12,7 @@ type StreamingMessage = {
 
 export function Thread(props: { messages: ConversationMessage[]; streamingMessage: StreamingMessage | null }) {
   return (
-    <div data-testid="thread" style={{ maxHeight: 560, overflow: "auto", paddingRight: 8 }}>
+    <div data-testid="thread" className="thread-scroll">
       {props.messages.map((m) => (
         <MessageBubble
           key={m.id}

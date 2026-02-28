@@ -13,21 +13,15 @@ export function MessageBubble(props: {
       data-author={props.author}
       data-tag={props.tag}
       data-streaming={props.streaming ? "true" : "false"}
-      style={{
-        background: props.mine ? "#e9f8ef" : "#f4f4f5",
-        border: "1px solid #e4e4e7",
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 10,
-      }}
+      className={`message-bubble${props.mine ? " mine" : ""}`}
     >
-      <div data-testid="message-header" style={{ display: "flex", gap: 8, marginBottom: 6, fontSize: 12 }}>
-        <strong>{props.author}</strong>
-        <span style={{ color: "#52525b" }}>{props.tag}</span>
+      <div data-testid="message-header" className="message-header">
+        <strong className="message-author">{props.author}</strong>
+        <span className="message-tag">{props.tag}</span>
       </div>
-      <div data-testid="message-content" style={{ whiteSpace: "pre-wrap" }}>
+      <div data-testid="message-content" className="message-content">
         {props.content}
-        {props.streaming ? "▌" : ""}
+        {props.streaming ? <span className="stream-cursor">▌</span> : null}
       </div>
     </div>
   );

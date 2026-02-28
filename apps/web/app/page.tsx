@@ -214,105 +214,83 @@ export default function HomePage() {
     }
   }
 
+  function statusClassName(status: AgentStatusPayload["status"]) {
+    if (status === "typing") return "status-chip status-typing";
+    if (status === "thinking") return "status-chip status-thinking";
+    if (status === "error") return "status-chip status-error";
+    return "status-chip";
+  }
+
   return (
-    <main
-      data-testid="main"
-      style={{ maxWidth: 1200, margin: "0 auto", padding: 24, display: "grid", gap: 20 }}
-    >
-      <div>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>POE Platform</h1>
-        <p data-testid="subtitle" style={{ margin: "4px 0 0", color: "#666", fontSize: 14 }}>
-          {subtitle}
-        </p>
+    <main data-testid="main" className="poe-shell">
+      <div className="poe-hero">
+        <div className="poe-hero-content">
+          <span className="poe-kicker">Live Deliberation Studio</span>
+          <h1 className="poe-title">POE Platform</h1>
+          <p data-testid="subtitle" className="poe-subtitle">
+            {subtitle}
+          </p>
+        </div>
       </div>
 
       {error && (
-        <div
-          data-testid="error-banner"
-          style={{
-            padding: "10px 16px",
-            background: "#fef2f2",
-            border: "1px solid #fca5a5",
-            borderRadius: 6,
-            color: "#991b1b",
-            fontSize: 14,
-          }}
-        >
-          {error}{" "}
-          <button style={{ marginLeft: 8, cursor: "pointer" }} onClick={() => setError(null)}>
+        <div data-testid="error-banner" className="poe-error">
+          <span>{error}</span>
+          <button className="poe-error-dismiss" onClick={() => setError(null)} aria-label="Dismiss error">
             ✕
           </button>
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 20, gridTemplateColumns: "340px 1fr" }}>
+      <div className="poe-grid">
         {/* Left: Panel Config */}
         <SectionCard title="Panel Configuration">
-          <div style={{ display: "grid", gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>
-                Panel Name
-              </label>
+          <div className="config-grid">
+            <div className="config-field">
+              <label className="config-label">Panel Name</label>
               <input
                 data-testid="panel-name-input"
                 value={panelName}
                 onChange={(e) => setPanelName(e.target.value)}
                 placeholder="Panel name"
-                style={{ width: "100%", padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 4, boxSizing: "border-box" }}
+                className="config-input"
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>
-                Mode
-              </label>
+            <div className="config-field">
+              <label className="config-label">Mode</label>
               <select
                 data-testid="panel-mode-select"
                 value={panelMode}
                 onChange={(e) => setPanelMode(e.target.value as "scatter_gather" | "pipeline_parallel")}
-                style={{ width: "100%", padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 4 }}
+                className="config-select"
               >
                 <option value="scatter_gather">Scatter Gather</option>
                 <option value="pipeline_parallel">Pipeline Parallel</option>
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>
-                Personas ({selectedPersonaIds.length}/8 selected)
-              </label>
+            <div className="config-field">
+              <label className="config-label">Personas ({selectedPersonaIds.length}/8 selected)</label>
               {personasLoading ? (
-                <p style={{ fontSize: 13, color: "#6b7280" }}>Loading personas…</p>
+                <p className="hint-line">Loading personas…</p>
               ) : (
-                <div data-testid="persona-list" style={{ display: "grid", gap: 6 }}>
+                <div data-testid="persona-list" className="persona-list">
                   {personas.map((p) => (
                     <label
                       key={p.id}
                       data-testid="persona-item"
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 8,
-                        padding: "8px 10px",
-                        border: selectedPersonaIds.includes(p.id)
-                          ? "1px solid #2563eb"
-                          : "1px solid #e5e7eb",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        background: selectedPersonaIds.includes(p.id) ? "#eff6ff" : "#fff",
-                        transition: "all 0.15s",
-                      }}
+                      className={`persona-option${selectedPersonaIds.includes(p.id) ? " selected" : ""}`}
                     >
                       <input
                         type="checkbox"
                         checked={selectedPersonaIds.includes(p.id)}
                         onChange={() => togglePersona(p.id)}
-                        style={{ marginTop: 2 }}
                         data-persona-id={p.id}
                       />
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
-                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{p.style}</div>
+                        <div className="persona-name">{p.name}</div>
+                        <div className="persona-style">{p.style}</div>
                       </div>
                     </label>
                   ))}
@@ -324,16 +302,7 @@ export default function HomePage() {
               data-testid="create-panel-btn"
               disabled={busy || selectedPersonaIds.length === 0 || personasLoading}
               onClick={handleCreatePanel}
-              style={{
-                padding: "10px 16px",
-                background: selectedPersonaIds.length > 0 ? "#2563eb" : "#9ca3af",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                cursor: selectedPersonaIds.length > 0 ? "pointer" : "not-allowed",
-                fontWeight: 600,
-                fontSize: 14,
-              }}
+              className="create-button"
             >
               {busy && !sessionId ? "Creating…" : sessionId ? "New Panel" : "Create Panel"}
             </button>
@@ -342,14 +311,15 @@ export default function HomePage() {
 
         {/* Right: Conversation */}
         <SectionCard title="Threaded Discussion">
-          <div data-testid="live-status" style={{ marginBottom: 12, fontSize: 12, color: "#6b7280" }}>
-            <div data-testid="mediator-status">Mediator: {mediatorStatus}</div>
-            <div
-              data-testid="agent-statuses"
-              style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}
-            >
+          <div data-testid="live-status" className="status-region">
+            <p data-testid="mediator-status" className="status-label">
+              Mediator: {mediatorStatus}
+            </p>
+            <div data-testid="agent-statuses" className="status-chips">
               {Object.entries(agentStatuses).length === 0 ? (
-                <span data-testid="agent-status-empty">No active speakers</span>
+                <span data-testid="agent-status-empty" className="status-chip">
+                  No active speakers
+                </span>
               ) : (
                 Object.entries(agentStatuses).map(([agentId, status]) => (
                   <span
@@ -357,13 +327,7 @@ export default function HomePage() {
                     data-testid="agent-status"
                     data-agent-id={agentId}
                     data-status={status}
-                    style={{
-                      border: "1px solid #d1d5db",
-                      borderRadius: 999,
-                      padding: "2px 8px",
-                      background:
-                        status === "typing" ? "#f0fdf4" : status === "thinking" ? "#fffbeb" : "#fafafa",
-                    }}
+                    className={statusClassName(status)}
                   >
                     {agentId}: {status}
                   </span>
@@ -375,18 +339,12 @@ export default function HomePage() {
           <Thread messages={messages} streamingMessage={streamingMessage} />
 
           {!sessionId && (
-            <p
-              data-testid="no-session-hint"
-              style={{ color: "#9ca3af", fontSize: 13, textAlign: "center", padding: "32px 0" }}
-            >
+            <p data-testid="no-session-hint" className="no-session-hint">
               Select personas on the left and click "Create Panel" to start.
             </p>
           )}
 
-          <ChatInput
-            disabled={!sessionId || busy}
-            onSend={handleSend}
-          />
+          <ChatInput disabled={!sessionId || busy} onSend={handleSend} />
         </SectionCard>
       </div>
     </main>

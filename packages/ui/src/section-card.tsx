@@ -2,16 +2,9 @@ import React from "react";
 
 export function SectionCard(props: { title: string; children: React.ReactNode }) {
   return (
-    <section
-      style={{
-        border: "1px solid #e4e4e7",
-        borderRadius: 14,
-        padding: 16,
-        background: "#ffffff",
-      }}
-    >
-      <h3 style={{ marginTop: 0, marginBottom: 12 }}>{props.title}</h3>
-      {props.children}
+    <section className="section-card">
+      <h3 className="section-card-header">{props.title}</h3>
+      <div className="section-card-body">{props.children}</div>
     </section>
   );
 }
