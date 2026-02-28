@@ -24,7 +24,13 @@ function shortId(id: string | null | undefined): string {
   return id.slice(0, 8);
 }
 
-export function Thread(props: { messages: ConversationMessage[]; streamingMessage: StreamingMessage | null }) {
+export function Thread(props: {
+  messages: ConversationMessage[];
+  streamingMessage: StreamingMessage | null;
+  personaNameMap?: Record<string, string>;
+}) {
+  const nameFor = (id: string): string => props.personaNameMap?.[id] ?? id;
+
   const { looseMessages, cycleGroups, byId } = useMemo(() => {
     const loose: ConversationMessage[] = [];
     const groups = new Map<string, CycleGroup>();
@@ -69,14 +75,15 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
 
     if (message.reply_to_message_id) {
       const replyTarget = byId.get(message.reply_to_message_id);
-      const replyLabel = replyTarget ? `@${replyTarget.author_id}` : `#${shortId(message.reply_to_message_id)}`;
+      const replyLabel = replyTarget ? `@${nameFor(replyTarget.author_id)}` : `#${shortId(message.reply_to_message_id)}`;
       parts.push(`Replying to ${replyLabel}`);
     }
     if (message.directed_to_persona_id) {
-      parts.push(`Directed to @${message.directed_to_persona_id}`);
+      const targetName = message.directed_to_persona_id === "user" ? "You" : nameFor(message.directed_to_persona_id);
+      parts.push(`→ @${targetName}`);
     }
-    if (message.mentioned_persona_ids && message.mentioned_persona_ids.length > 0) {
-      parts.push(`Mentions ${message.mentioned_persona_ids.map((id) => `@${id}`).join(", ")}`);
+    if (message.content.includes("@user")) {
+      parts.push("→ asks you directly");
     }
 
     return parts.length > 0 ? parts.join(" • ") : undefined;
@@ -89,7 +96,7 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
       {looseMessages.map((m) => (
         <MessageBubble
           key={m.id}
-          author={m.author_id}
+          author={nameFor(m.author_id)}
           content={m.content}
           tag={m.argument_tag}
           subtitle={messageSubtitle(m)}
@@ -118,7 +125,7 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
             {userMessage ? (
               <MessageBubble
                 key={userMessage.id}
-                author={userMessage.author_id}
+                author={nameFor(userMessage.author_id)}
                 content={userMessage.content}
                 tag={userMessage.argument_tag}
                 subtitle={messageSubtitle(userMessage)}
@@ -129,7 +136,7 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
             {expertMessages.map((m) => (
               <MessageBubble
                 key={m.id}
-                author={m.author_id}
+                author={nameFor(m.author_id)}
                 content={m.content}
                 tag={m.argument_tag}
                 subtitle={messageSubtitle(m)}
@@ -139,7 +146,7 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
             {showStreaming && props.streamingMessage ? (
               <MessageBubble
                 key={props.streamingMessage.id}
-                author={props.streamingMessage.author_id}
+                author={nameFor(props.streamingMessage.author_id)}
                 content={props.streamingMessage.content}
                 tag={props.streamingMessage.argument_tag}
                 subtitle={
@@ -154,7 +161,7 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
             {mediatorMessages.map((m) => (
               <MessageBubble
                 key={m.id}
-                author={m.author_id}
+                author={nameFor(m.author_id)}
                 content={m.content}
                 tag={m.argument_tag}
                 subtitle={messageSubtitle(m)}
@@ -167,7 +174,7 @@ export function Thread(props: { messages: ConversationMessage[]; streamingMessag
       {props.streamingMessage && (!props.streamingMessage.cycle_id || !streamingRendered) ? (
         <MessageBubble
           key={props.streamingMessage.id}
-          author={props.streamingMessage.author_id}
+          author={nameFor(props.streamingMessage.author_id)}
           content={props.streamingMessage.content}
           tag={props.streamingMessage.argument_tag}
           subtitle={

@@ -102,6 +102,13 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  const personaNameMap = useMemo(
+    () => Object.fromEntries(personas.map((p) => [p.id, p.name])),
+    [personas]
+  );
+
+  const nameFor = (id: string): string => personaNameMap[id] ?? id;
+
   const subtitle = useMemo(() => {
     if (sessionId) return `Session: ${sessionId.slice(0, 8)}…`;
     if (panelId) return `Panel: ${panelId.slice(0, 8)}…`;
@@ -153,7 +160,7 @@ export default function HomePage() {
     if (parsed.type === "turn.started") {
       const payload = parsed.payload as TurnStartedPayload;
       setAgentStatuses((prev) => ({ ...prev, [payload.speaker_id]: "thinking" }));
-      setMediatorStatus(`turn ${payload.turn_index}: @${payload.speaker_id}`);
+      setMediatorStatus(`turn ${payload.turn_index}: ${nameFor(payload.speaker_id)}`);
       return;
     }
 
@@ -326,9 +333,9 @@ export default function HomePage() {
           </button>
 
           <header className="cpb-page-header">
-            <h1 className="cpb-page-title">Design your panel</h1>
+            <h1 className="cpb-page-title">Assemble The Midnight Panel</h1>
             <p className="cpb-page-subtitle">
-              Name the team, describe three experts, and launch them into a session.
+              Name your experts, define their voices, and open the chamber.
             </p>
           </header>
 
@@ -348,6 +355,8 @@ export default function HomePage() {
               setMediatorStatus("session.ready");
               setBusy(false);
               connectEventStream(sid);
+              // Refresh so custom persona names appear in the name map
+              listPersonas().then(setPersonas).catch(() => {});
               setView("manual");
             }}
             onCancel={() => setView("home")}
@@ -362,9 +371,9 @@ export default function HomePage() {
       <main data-testid="main" className="poe-shell">
         <div className="poe-hero">
           <div className="poe-hero-content">
-            <span className="poe-kicker">Live Deliberation Studio</span>
-            <h1 className="poe-title">POE Platform</h1>
-            <p data-testid="subtitle" className="poe-subtitle">Choose a panel or build your own</p>
+            <span className="poe-kicker">The Midnight Deliberation Chamber</span>
+            <h1 className="poe-title">POE: Panel Of Experts</h1>
+            <p data-testid="subtitle" className="poe-subtitle">Choose a panel and enter the chamber</p>
           </div>
         </div>
 
@@ -383,12 +392,11 @@ export default function HomePage() {
           >
             <div className="home-cta-inner">
               <span className="home-cta-badge">New</span>
-              <h2 className="home-cta-title">Build Your Panel</h2>
+              <h2 className="home-cta-title">Summon Your Panel</h2>
               <p className="home-cta-desc">
-                Choose from curated presets or design your own experts.
-                AI suggests persona voices based on your topic.
+                Raise three distinctive experts and let them deliberate in a darker, more theatrical forum.
               </p>
-              <span className="home-cta-link">Start building →</span>
+              <span className="home-cta-link">Open the ritual →</span>
             </div>
           </button>
 
@@ -409,8 +417,8 @@ export default function HomePage() {
     <main data-testid="main" className="poe-shell">
       <div className="poe-hero">
         <div className="poe-hero-content">
-          <span className="poe-kicker">Live Deliberation Studio</span>
-          <h1 className="poe-title">POE Platform</h1>
+          <span className="poe-kicker">The Midnight Deliberation Chamber</span>
+          <h1 className="poe-title">POE: Panel Of Experts</h1>
           <p data-testid="subtitle" className="poe-subtitle">{subtitle}</p>
         </div>
       </div>
@@ -514,21 +522,21 @@ export default function HomePage() {
         <SectionCard title="Threaded Discussion">
           <div data-testid="live-status" className="status-region">
             <p data-testid="mediator-status" className="status-label">Mediator: {mediatorStatus}</p>
-            {nextSpeakerHint ? <p className="status-hint">Next speaker hint: @{nextSpeakerHint}</p> : null}
+            {nextSpeakerHint ? <p className="status-hint">Next: {nameFor(nextSpeakerHint)}</p> : null}
             <div data-testid="agent-statuses" className="status-chips">
               {Object.entries(agentStatuses).length === 0 ? (
                 <span data-testid="agent-status-empty" className="status-chip">No active speakers</span>
               ) : (
                 Object.entries(agentStatuses).map(([agentId, status]) => (
                   <span key={agentId} data-testid="agent-status" data-agent-id={agentId} data-status={status} className={statusClassName(status)}>
-                    {agentId}: {status}
+                    {nameFor(agentId)}: {status}
                   </span>
                 ))
               )}
             </div>
           </div>
 
-          <Thread messages={messages} streamingMessage={streamingMessage} />
+          <Thread messages={messages} streamingMessage={streamingMessage} personaNameMap={personaNameMap} />
 
           {!sessionId && (
             <p data-testid="no-session-hint" className="no-session-hint">
