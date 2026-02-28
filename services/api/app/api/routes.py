@@ -41,6 +41,14 @@ class SuggestPanelRequest(BaseModel):
 router = APIRouter(prefix="/v1", tags=["v1"])
 
 
+def _persona_name_key(persona_row: Persona) -> str:
+    schema_name = ""
+    if isinstance(persona_row.schema_json, dict):
+        schema_name = str(persona_row.schema_json.get("name", "")).strip()
+    fallback_name = (persona_row.name or "").strip()
+    return (schema_name or fallback_name).casefold()
+
+
 def _to_message_response(message: Message) -> ConversationMessageResponse:
     return ConversationMessageResponse(
         id=message.id,
@@ -83,8 +91,22 @@ def create_or_update_persona(payload: PersonaSchema, db: Session = Depends(get_d
 
 @router.get("/personas", response_model=list[PersonaSchema])
 def list_personas(db: Session = Depends(get_db)) -> list[PersonaSchema]:
-    rows = list(db.scalars(select(Persona).order_by(Persona.name)))
-    return [PersonaSchema(**r.schema_json) for r in rows]
+    rows = list(
+        db.scalars(
+            select(Persona).order_by(Persona.name.asc(), Persona.updated_at.desc(), Persona.id.asc())
+        )
+    )
+    seen_names: set[str] = set()
+    unique_rows: list[Persona] = []
+    for row in rows:
+        name_key = _persona_name_key(row)
+        if name_key and name_key in seen_names:
+            continue
+        if name_key:
+            seen_names.add(name_key)
+        unique_rows.append(row)
+
+    return [PersonaSchema(**r.schema_json) for r in unique_rows]
 
 
 @router.post("/personas/seed", response_model=list[PersonaSchema])
