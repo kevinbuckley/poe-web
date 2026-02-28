@@ -15,6 +15,25 @@ import {
   seedPersonas,
 } from "../lib/api";
 
+type PanelMode = "scatter_gather" | "pipeline_parallel";
+
+const MODE_OPTIONS: Array<{
+  value: PanelMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "scatter_gather",
+    label: "Independent Roundtable",
+    description: "Each expert responds to your prompt directly, then the mediator synthesizes.",
+  },
+  {
+    value: "pipeline_parallel",
+    label: "Sequential Debate",
+    description: "Experts respond in sequence and build on each other's points.",
+  },
+];
+
 
 type StreamingMessage = {
   id: string;
@@ -78,7 +97,7 @@ export default function HomePage() {
   const [personas, setPersonas] = useState<PersonaSchema[]>([]);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [panelName, setPanelName] = useState("Expert Panel");
-  const [panelMode, setPanelMode] = useState<"scatter_gather" | "pipeline_parallel">("scatter_gather");
+  const [panelMode, setPanelMode] = useState<PanelMode>("scatter_gather");
   const [personasLoading, setPersonasLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -439,12 +458,18 @@ export default function HomePage() {
               <select
                 data-testid="panel-mode-select"
                 value={panelMode}
-                onChange={(e) => setPanelMode(e.target.value as "scatter_gather" | "pipeline_parallel")}
+                onChange={(e) => setPanelMode(e.target.value as PanelMode)}
                 className="config-select"
               >
-                <option value="scatter_gather">Scatter Gather</option>
-                <option value="pipeline_parallel">Pipeline Parallel</option>
+                {MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
+              <p className="hint-line">
+                {MODE_OPTIONS.find((option) => option.value === panelMode)?.description}
+              </p>
             </div>
 
             <div className="config-field">

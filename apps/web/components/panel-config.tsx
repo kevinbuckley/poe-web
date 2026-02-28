@@ -2,20 +2,30 @@
 
 import { useState } from "react";
 
+type PanelMode = "scatter_gather" | "pipeline_parallel";
+
+const MODE_OPTIONS: Array<{ value: PanelMode; label: string }> = [
+  { value: "scatter_gather", label: "Independent Roundtable" },
+  { value: "pipeline_parallel", label: "Sequential Debate" },
+];
+
 export function PanelConfig(props: {
-  onCreate: (input: { name: string; personaIds: string[]; mode: "scatter_gather" | "pipeline_parallel" }) => Promise<void>;
+  onCreate: (input: { name: string; personaIds: string[]; mode: PanelMode }) => Promise<void>;
   loading: boolean;
 }) {
   const [name, setName] = useState("Founders vs. Sharks");
-  const [mode, setMode] = useState<"scatter_gather" | "pipeline_parallel">("scatter_gather");
+  const [mode, setMode] = useState<PanelMode>("scatter_gather");
   const [personaIdsText, setPersonaIdsText] = useState("shark_1,founder_1,mediator_1");
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Panel name" />
-      <select value={mode} onChange={(e) => setMode(e.target.value as "scatter_gather" | "pipeline_parallel") }>
-        <option value="scatter_gather">scatter_gather</option>
-        <option value="pipeline_parallel">pipeline_parallel</option>
+      <select value={mode} onChange={(e) => setMode(e.target.value as PanelMode)}>
+        {MODE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </select>
       <input
         value={personaIdsText}
