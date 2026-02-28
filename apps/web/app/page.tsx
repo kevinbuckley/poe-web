@@ -79,6 +79,18 @@ type CycleSynthesisPayload = {
   message: ConversationMessage;
 };
 
+function dedupePersonasByName(list: PersonaSchema[]): PersonaSchema[] {
+  const seen = new Set<string>();
+  const unique: PersonaSchema[] = [];
+  for (const persona of list) {
+    const key = persona.name.trim().toLowerCase();
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    unique.push(persona);
+  }
+  return unique;
+}
+
 function firstMention(text: string): string | undefined {
   const match = text.match(/@([a-zA-Z0-9][a-zA-Z0-9_-]{1,63})/);
   return match?.[1];
@@ -120,11 +132,11 @@ export default function HomePage() {
     listPersonas()
       .then(async (list) => {
         if (list.length > 0) {
-          setPersonas(list);
+          setPersonas(dedupePersonasByName(list));
           return;
         }
         const seeded = await seedPersonas();
-        setPersonas(seeded);
+        setPersonas(dedupePersonasByName(seeded));
       })
       .catch((err) => setError(String(err)))
       .finally(() => setPersonasLoading(false));
