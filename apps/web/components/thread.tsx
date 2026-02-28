@@ -24,12 +24,24 @@ function shortId(id: string | null | undefined): string {
   return id.slice(0, 8);
 }
 
+const mentionPattern = /@([a-zA-Z0-9][a-zA-Z0-9_-]{1,63})/g;
+
 export function Thread(props: {
   messages: ConversationMessage[];
   streamingMessage: StreamingMessage | null;
   personaNameMap?: Record<string, string>;
 }) {
-  const nameFor = (id: string): string => props.personaNameMap?.[id] ?? id;
+  const nameFor = (id: string): string => {
+    if (id === "user") return "You";
+    if (id === "mediator") return "Mediator";
+    return props.personaNameMap?.[id] ?? id;
+  };
+  const humanizeMentions = (content: string): string =>
+    content.replace(mentionPattern, (_match, mentionId: string) => {
+      if (mentionId === "user") return "@You";
+      const mapped = nameFor(mentionId);
+      return mapped === mentionId ? `@${mentionId}` : `@${mapped}`;
+    });
 
   const { looseMessages, cycleGroups, byId } = useMemo(() => {
     const loose: ConversationMessage[] = [];
@@ -97,7 +109,7 @@ export function Thread(props: {
         <MessageBubble
           key={m.id}
           author={nameFor(m.author_id)}
-          content={m.content}
+          content={humanizeMentions(m.content)}
           tag={m.argument_tag}
           subtitle={messageSubtitle(m)}
           mine={m.role === "user"}
@@ -126,7 +138,7 @@ export function Thread(props: {
               <MessageBubble
                 key={userMessage.id}
                 author={nameFor(userMessage.author_id)}
-                content={userMessage.content}
+                content={humanizeMentions(userMessage.content)}
                 tag={userMessage.argument_tag}
                 subtitle={messageSubtitle(userMessage)}
                 mine
@@ -137,7 +149,7 @@ export function Thread(props: {
               <MessageBubble
                 key={m.id}
                 author={nameFor(m.author_id)}
-                content={m.content}
+                content={humanizeMentions(m.content)}
                 tag={m.argument_tag}
                 subtitle={messageSubtitle(m)}
               />
@@ -162,7 +174,7 @@ export function Thread(props: {
               <MessageBubble
                 key={m.id}
                 author={nameFor(m.author_id)}
-                content={m.content}
+                content={humanizeMentions(m.content)}
                 tag={m.argument_tag}
                 subtitle={messageSubtitle(m)}
               />

@@ -17,7 +17,12 @@ interface ExpertSlot {
 }
 
 interface Props {
-  onLaunch: (sessionId: string, panelId: string, personaIds: string[]) => void;
+  onLaunch: (
+    sessionId: string,
+    panelId: string,
+    personaIds: string[],
+    personaRoster: Array<{ id: string; name: string }>
+  ) => void;
   onCancel: () => void;
 }
 
@@ -225,6 +230,7 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
     try {
       const ts = Date.now();
       const personaIds: string[] = [];
+      const personaRoster: Array<{ id: string; name: string }> = [];
       for (let i = 0; i < slots.length; i++) {
         const slot = slots[i];
         const id = `custom-${ts}-${i}`;
@@ -243,6 +249,7 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
           },
         });
         personaIds.push(id);
+        personaRoster.push({ id, name: slot.name });
       }
 
       const panel = await createPanel({
@@ -251,7 +258,7 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
         mode: "scatter_gather",
       });
       const session = await createSession({ panel_id: panel.id });
-      onLaunch(session.id, panel.id, personaIds);
+      onLaunch(session.id, panel.id, personaIds, personaRoster);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Launch failed. Please try again.");
       setLaunching(false);

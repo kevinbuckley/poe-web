@@ -91,6 +91,10 @@ function dedupePersonasByName(list: PersonaSchema[]): PersonaSchema[] {
   return unique;
 }
 
+function indexPersonasById(list: PersonaSchema[]): Record<string, string> {
+  return Object.fromEntries(list.map((persona) => [persona.id, persona.name]));
+}
+
 function firstMention(text: string): string | undefined {
   const match = text.match(/@([a-zA-Z0-9][a-zA-Z0-9_-]{1,63})/);
   return match?.[1];
@@ -107,6 +111,7 @@ export default function HomePage() {
   const [nextSpeakerHint, setNextSpeakerHint] = useState<string | null>(null);
   const [agentStatuses, setAgentStatuses] = useState<Record<string, SpeakerStatus>>({});
   const [personas, setPersonas] = useState<PersonaSchema[]>([]);
+  const [personaDirectory, setPersonaDirectory] = useState<Record<string, string>>({});
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [panelName, setPanelName] = useState("Expert Panel");
   const [panelMode, setPanelMode] = useState<PanelMode>("scatter_gather");
@@ -115,11 +120,15 @@ export default function HomePage() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const personaNameMap = useMemo(
-    () => Object.fromEntries(personas.map((p) => [p.id, p.name])),
-    [personas]
+    () => ({ ...Object.fromEntries(personas.map((p) => [p.id, p.name])), ...personaDirectory }),
+    [personas, personaDirectory]
   );
 
-  const nameFor = (id: string): string => personaNameMap[id] ?? id;
+  const nameFor = (id: string): string => {
+    if (id === "user") return "You";
+    if (id === "mediator") return "Mediator";
+    return personaNameMap[id] ?? id;
+  };
 
   const subtitle = useMemo(() => {
     if (sessionId) return `Session: ${sessionId.slice(0, 8)}…`;
@@ -132,10 +141,12 @@ export default function HomePage() {
     listPersonas()
       .then(async (list) => {
         if (list.length > 0) {
+          setPersonaDirectory((prev) => ({ ...prev, ...indexPersonasById(list) }));
           setPersonas(dedupePersonasByName(list));
           return;
         }
         const seeded = await seedPersonas();
+        setPersonaDirectory((prev) => ({ ...prev, ...indexPersonasById(seeded) }));
         setPersonas(dedupePersonasByName(seeded));
       })
       .catch((err) => setError(String(err)))
@@ -359,16 +370,27 @@ export default function HomePage() {
           )}
 
           <CustomPanelBuilder
-            onLaunch={(sid, pid, personaIds) => {
+            onLaunch={(sid, pid, personaIds, personaRoster) => {
               setPanelId(pid);
               setSessionId(sid);
               setSelectedPersonaIds(personaIds);
+              if (personaRoster && personaRoster.length > 0) {
+                setPersonaDirectory((prev) => ({
+                  ...prev,
+                  ...Object.fromEntries(personaRoster.map((persona) => [persona.id, persona.name])),
+                }));
+              }
               setMessages([]);
               setMediatorStatus("session.ready");
               setBusy(false);
               connectEventStream(sid);
               // Refresh so custom persona names appear in the name map
-              listPersonas().then(setPersonas).catch(() => {});
+              listPersonas()
+                .then((list) => {
+                  setPersonaDirectory((prev) => ({ ...prev, ...indexPersonasById(list) }));
+                  setPersonas(dedupePersonasByName(list));
+                })
+                .catch(() => {});
               setView("manual");
             }}
             onCancel={() => setView("home")}
