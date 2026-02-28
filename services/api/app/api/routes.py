@@ -284,6 +284,55 @@ def suggest_voice(payload: SuggestVoiceRequest) -> dict:
     return {"suggestions": _VOICE_FALLBACKS}
 
 
+class GenerateExpertsRequest(BaseModel):
+    topic: str
+    n: int = 3
+
+
+@router.post("/panels/generate-experts")
+def generate_experts(payload: GenerateExpertsRequest) -> dict:
+    """Use GPT to invent brand-new expert personas for a topic (not from DB)."""
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+    system = (
+        "You are a panel designer. Create fresh, distinctive expert personas for a discussion panel. "
+        "Each expert should have a memorable name (can be inspired by a real figure or be an archetype) "
+        "and a signature voice — how they think, argue, and speak — in ≤200 characters. "
+        "Make the experts complement each other: varied disciplines, rhetorical styles, and worldviews. "
+        "Return ONLY valid JSON with key \"experts\": an array of objects each with \"name\" and \"voice\"."
+    )
+    user = (
+        f"Panel topic: \"{payload.topic}\"\n"
+        f"Generate exactly {payload.n} distinct expert personas that would make this panel "
+        "intellectually rich and worth listening to. Return only the JSON."
+    )
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            max_completion_tokens=600,
+            temperature=0.9,
+        )
+        raw = (resp.choices[0].message.content or "{}").strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        data = json.loads(raw)
+        experts = data.get("experts", [])[:payload.n]
+        if experts and all("name" in e and "voice" in e for e in experts):
+            return {"experts": experts}
+    except Exception:
+        pass
+
+    # Static fallback
+    return {"experts": [
+        {"name": "The Visionary", "voice": "Sees the 10-year arc others miss. Synthesises trends into bold conviction. Speaks in vivid futures."},
+        {"name": "The Builder", "voice": "Asks 'does this ship?' Cuts through abstraction to constraints, trade-offs, and what works in practice."},
+        {"name": "The Challenger", "voice": "Steelmans opposing views with rigour. Surfaces uncomfortable truths others avoid saying out loud."},
+    ][:payload.n]}
+
+
 @router.post("/panels/suggest")
 def suggest_panel(payload: SuggestPanelRequest, db: Session = Depends(get_db)) -> dict:
     """Use GPT to suggest persona IDs from the DB for a given topic."""

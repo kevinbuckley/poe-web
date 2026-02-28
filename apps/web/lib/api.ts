@@ -10,6 +10,8 @@ import {
   type SuggestVoiceResponse,
   type SuggestPanelRequest,
   type SuggestPanelResponse,
+  type GenerateExpertsRequest,
+  type GenerateExpertsResponse,
 } from "@poe/contracts";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -72,6 +74,13 @@ export function suggestVoice(payload: SuggestVoiceRequest): Promise<SuggestVoice
 
 export function suggestPanel(payload: SuggestPanelRequest): Promise<SuggestPanelResponse> {
   return json<SuggestPanelResponse>(`${API_BASE}/v1/panels/suggest`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateExperts(payload: GenerateExpertsRequest): Promise<GenerateExpertsResponse> {
+  return json<GenerateExpertsResponse>(`${API_BASE}/v1/panels/generate-experts`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

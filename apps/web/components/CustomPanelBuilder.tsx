@@ -5,8 +5,7 @@ import { type VoiceSuggestion } from "@poe/contracts";
 import {
   createPanel,
   createSession,
-  listPersonas,
-  suggestPanel,
+  generateExperts,
   suggestVoice,
   upsertPersona,
 } from "../lib/api";
@@ -191,26 +190,20 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
     setSuggestingPanel(true);
     setError(null);
     try {
-      const resp = await suggestPanel({ topic: title });
-      const all = await listPersonas();
-      const chosen = resp.suggested_persona_ids
-        .map((id) => all.find((p) => p.id === id))
-        .filter(Boolean)
-        .slice(0, 3);
-
-      if (chosen.length === 0) {
-        setError("AI couldn't find matching experts. Try a more specific topic.");
+      const resp = await generateExperts({ topic: title, n: slots.length });
+      if (!resp.experts.length) {
+        setError("AI couldn't generate experts. Try a more specific topic.");
         return;
       }
       setSlots(
-        chosen.map((p, i) => ({
+        resp.experts.map((e, i) => ({
           id: `expert-${i + 1}`,
-          name: p!.name,
-          voice: p!.style || p!.identity || "",
+          name: e.name,
+          voice: e.voice,
         }))
       );
     } catch {
-      setError("AI panel suggestion failed. You can fill in experts manually.");
+      setError("AI suggestion failed. You can fill in experts manually.");
     } finally {
       setSuggestingPanel(false);
     }

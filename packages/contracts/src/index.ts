@@ -140,6 +140,15 @@ export interface SuggestPanelResponse {
   rationale: string;
 }
 
+export interface GenerateExpertsRequest {
+  topic: string;
+  n?: number;
+}
+
+export interface GenerateExpertsResponse {
+  experts: { name: string; voice: string }[];
+}
+
 export interface PresetPanel {
   key: string;
   name: string;
