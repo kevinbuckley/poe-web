@@ -40,6 +40,56 @@ const TEMPLATE_SLOTS: ExpertSlot[] = [
   },
 ];
 
+interface BuilderPreset {
+  key: string;
+  label: string;
+  title: string;
+  slots: ExpertSlot[];
+}
+
+const BUILDER_PRESETS: BuilderPreset[] = [
+  {
+    key: "tech",
+    label: "Tech — Ada, Linus, Grace",
+    title: "Tech Panel",
+    slots: [
+      { id: "expert-1", name: "Ada", voice: "Sees code as mathematics made concrete — every system a proof constructed with elegance and precision." },
+      { id: "expert-2", name: "Linus", voice: "Performance is king. Pragmatic, blunt, unimpressed by abstractions that don't compile to efficient binaries." },
+      { id: "expert-3", name: "Grace", voice: "Systems must be debugged, not rationalized. Telemetry and empirical testing over theoretical elegance." },
+    ],
+  },
+  {
+    key: "philosophy",
+    label: "Philosophy — Aristotle, Nietzsche, Laozi",
+    title: "Philosophy Panel",
+    slots: [
+      { id: "expert-1", name: "Aristotle", voice: "Virtue lies in practical wisdom — the mean between extremes. Ethics is lived, not theorized." },
+      { id: "expert-2", name: "Nietzsche", voice: "Question every assumption. Expose comfortable illusions. The honest examination of why we believe what we believe." },
+      { id: "expert-3", name: "Laozi", voice: "Yield like water, flow around obstacles. The softest overcomes the hardest. Act through non-action." },
+    ],
+  },
+  {
+    key: "finance",
+    label: "Finance — Warren, Ray, Cathie",
+    title: "Finance Panel",
+    slots: [
+      { id: "expert-1", name: "Warren", voice: "Focus on intrinsic value, not market noise. Invest in businesses you understand. Time is the ally of the good company." },
+      { id: "expert-2", name: "Ray", voice: "Think in macro cycles and principles. Diversify across uncorrelated assets. Understand the machine." },
+      { id: "expert-3", name: "Cathie", voice: "Disruptive innovation compounds exponentially. Early adopters capture the lion's share of returns." },
+    ],
+  },
+  {
+    key: "classic",
+    label: "Classic — Bohr, Socrates, Sarah, Mark",
+    title: "Classic Panel",
+    slots: [
+      { id: "expert-1", name: "Niels Bohr", voice: "Theoretical physicist, pioneer of quantum mechanics. Physics deals with what we can say about nature, not with nature itself." },
+      { id: "expert-2", name: "Socrates", voice: "I know that I know nothing. Question every assumption through dialogue. Wisdom begins in recognizing ignorance." },
+      { id: "expert-3", name: "Mark (VC)", voice: "Direct, assertive, data-driven. Unit economics matter above all. Scalability determines success." },
+    ],
+  },
+];
+
 export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");
@@ -237,6 +287,27 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
             <p className="cpb-subheading">
               Give each seat a name and voice. Tap "Persona ideas" for AI suggestions.
             </p>
+
+            {/* Preset picker */}
+            <div className="cpb-field" style={{ marginBottom: "1.25rem" }}>
+              <label className="cpb-label">Start from a preset (optional)</label>
+              <select
+                className="cpb-select"
+                defaultValue=""
+                onChange={(e) => {
+                  const preset = BUILDER_PRESETS.find((p) => p.key === e.target.value);
+                  if (!preset) return;
+                  setSlots(preset.slots.map((s) => ({ ...s })));
+                  if (!title.trim()) setTitle(preset.title);
+                  e.target.value = "";
+                }}
+              >
+                <option value="" disabled>— choose a preset to pre-fill experts —</option>
+                {BUILDER_PRESETS.map((p) => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="cpb-title-row">
               <div className="cpb-field" style={{ flex: 1 }}>

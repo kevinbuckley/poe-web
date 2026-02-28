@@ -15,40 +15,6 @@ import {
   seedPersonas,
 } from "../lib/api";
 
-const PRESET_PANELS = [
-  {
-    key: "classic",
-    name: "Classic",
-    emoji: "🎓",
-    description: "Timeless minds across science, philosophy, and faith",
-    persona_ids: ["niels-bohr", "socrates", "sarah-congregant", "mark-vc"],
-    experts: ["Niels Bohr", "Socrates", "Sarah", "Mark (VC)"],
-  },
-  {
-    key: "tech",
-    name: "Tech",
-    emoji: "💻",
-    description: "Engineering legends who built the computing world",
-    persona_ids: ["ada-tech", "linus-tech", "grace-tech"],
-    experts: ["Ada", "Linus", "Grace"],
-  },
-  {
-    key: "philosophy",
-    name: "Philosophy",
-    emoji: "🏛️",
-    description: "Ancient and modern thinkers challenging every assumption",
-    persona_ids: ["aristotle-phil", "nietzsche-phil", "laozi-phil"],
-    experts: ["Aristotle", "Nietzsche", "Laozi"],
-  },
-  {
-    key: "finance",
-    name: "Finance",
-    emoji: "📈",
-    description: "Legendary investors with radically different strategies",
-    persona_ids: ["warren-finance", "ray-finance", "cathie-finance"],
-    experts: ["Warren", "Ray", "Cathie"],
-  },
-] as const;
 
 type StreamingMessage = {
   id: string;
@@ -114,7 +80,6 @@ export default function HomePage() {
   const [panelName, setPanelName] = useState("Expert Panel");
   const [panelMode, setPanelMode] = useState<"scatter_gather" | "pipeline_parallel">("scatter_gather");
   const [personasLoading, setPersonasLoading] = useState(false);
-  const [presetLaunching, setPresetLaunching] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -267,27 +232,6 @@ export default function HomePage() {
     return session.id;
   }
 
-  async function launchPreset(preset: (typeof PRESET_PANELS)[number]) {
-    setPresetLaunching(preset.key);
-    setError(null);
-    setMessages([]);
-    try {
-      const panel = await createPanel({
-        name: preset.name,
-        persona_ids: [...preset.persona_ids],
-        mode: "scatter_gather",
-      });
-      setPanelId(panel.id);
-      setSelectedPersonaIds([...preset.persona_ids]);
-      await connectSession(panel.id);
-      setView("manual");
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setPresetLaunching(null);
-    }
-  }
-
   async function handleCreatePanel() {
     if (selectedPersonaIds.length === 0) {
       setError("Select at least one persona.");
@@ -412,52 +356,30 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="preset-grid">
-          {PRESET_PANELS.map((preset) => (
-            <button
-              key={preset.key}
-              className={`preset-card${presetLaunching === preset.key ? " launching" : ""}`}
-              onClick={() => launchPreset(preset)}
-              disabled={presetLaunching !== null || personasLoading}
-            >
-              <span className="preset-emoji">{preset.emoji}</span>
-              <h3 className="preset-name">{preset.name}</h3>
-              <p className="preset-desc">{preset.description}</p>
-              <ul className="preset-experts">
-                {preset.experts.map((e) => <li key={e}>{e}</li>)}
-              </ul>
-              <span className="preset-cta">{presetLaunching === preset.key ? "Launching…" : "Start →"}</span>
-            </button>
-          ))}
-
+        <div className="home-options">
           <button
             data-testid="start-custom"
-            className="preset-card preset-card--custom"
+            className="home-cta-card"
             onClick={() => setView("custom")}
           >
-            <div className="preset-card-custom-inner">
-              <span className="preset-card-custom-badge">New</span>
-              <h3 className="preset-card-custom-title">Build Your Panel</h3>
-              <p className="preset-card-custom-desc">
-                Walk through a quick wizard to name your experts and give them personalities.
+            <div className="home-cta-inner">
+              <span className="home-cta-badge">New</span>
+              <h2 className="home-cta-title">Build Your Panel</h2>
+              <p className="home-cta-desc">
+                Choose from curated presets or design your own experts.
                 AI suggests persona voices based on your topic.
               </p>
-              <span className="preset-card-custom-cta">
-                Start custom session →
-              </span>
+              <span className="home-cta-link">Start building →</span>
             </div>
           </button>
 
-          <button className="preset-card preset-card--manual" onClick={() => setView("manual")}>
-            <span className="preset-emoji">⚙️</span>
-            <h3 className="preset-name">Advanced</h3>
-            <p className="preset-desc">Hand-pick any combination from the full persona library</p>
-            <ul className="preset-experts">
-              <li>Up to 8 experts</li>
-              <li>Any mode</li>
-              <li>Full control</li>
-            </ul>
-            <span className="preset-cta">Configure →</span>
+          <button className="home-secondary-card" onClick={() => setView("manual")}>
+            <span className="home-secondary-emoji">⚙️</span>
+            <div>
+              <h3 className="home-secondary-title">Advanced</h3>
+              <p className="home-secondary-desc">Hand-pick any combination from the full persona library (up to 8 experts)</p>
+            </div>
+            <span className="home-secondary-cta">Configure →</span>
           </button>
         </div>
       </main>

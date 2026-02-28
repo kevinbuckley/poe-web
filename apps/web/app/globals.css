@@ -1535,3 +1535,120 @@ button {
   color: var(--ink-900);
   margin-top: 0.25rem;
 }
+
+/* ─────────────────────────────────────────
+   Home page — simplified two-option layout
+   ───────────────────────────────────────── */
+.home-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 38rem;
+  padding: 0 1rem;
+  margin: 0 auto;
+}
+
+.home-cta-card {
+  width: 100%;
+  background: var(--ink-900);
+  color: white;
+  border: none;
+  border-radius: 24px;
+  padding: 1.75rem 2rem;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.15s, box-shadow 0.15s;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.2);
+}
+.home-cta-card:hover { opacity: 0.92; box-shadow: 0 22px 50px rgba(0,0,0,0.28); }
+
+.home-cta-inner { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.home-cta-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.home-cta-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+}
+
+.home-cta-desc {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.home-cta-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  margin-top: 0.25rem;
+}
+
+.home-secondary-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255,255,255,0.75);
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  padding: 1.1rem 1.4rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.home-secondary-card:hover { border-color: var(--line-strong); box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+
+.home-secondary-emoji { font-size: 1.5rem; flex-shrink: 0; }
+
+.home-secondary-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0 0 0.15rem;
+}
+
+.home-secondary-desc {
+  font-size: 0.76rem;
+  color: var(--ink-500);
+  margin: 0;
+}
+
+.home-secondary-cta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-500);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* cpb select */
+.cpb-select {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.875rem;
+  color: var(--ink-700);
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+.cpb-select:focus { outline: none; border-color: var(--accent); }
