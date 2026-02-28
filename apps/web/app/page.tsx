@@ -351,38 +351,44 @@ export default function HomePage() {
 
   if (view === "custom") {
     return (
-      <main data-testid="main" className="poe-shell">
-        <div className="poe-hero">
-          <div className="poe-hero-content">
-            <span className="poe-kicker">Live Deliberation Studio</span>
-            <h1 className="poe-title">POE Platform</h1>
-            <p data-testid="subtitle" className="poe-subtitle">Build your own panel of experts</p>
-          </div>
+      <main data-testid="main" className="cpb-page">
+        <div className="cpb-page-bg" aria-hidden="true">
+          <div className="cpb-page-blob cpb-page-blob--right" />
+          <div className="cpb-page-blob cpb-page-blob--left" />
         </div>
 
-        {error && (
-          <div data-testid="error-banner" className="poe-error">
-            <span>{error}</span>
-            <button className="poe-error-dismiss" onClick={() => setError(null)}>✕</button>
-          </div>
-        )}
+        <div className="cpb-page-inner">
+          <button className="cpb-page-back" onClick={() => setView("home")}>
+            ← All Panels
+          </button>
 
-        <div className="poe-single-col">
-          <SectionCard title="Custom Panel Builder">
-            <CustomPanelBuilder
-              onLaunch={(sid, pid, personaIds) => {
-                setPanelId(pid);
-                setSessionId(sid);
-                setSelectedPersonaIds(personaIds);
-                setMessages([]);
-                setMediatorStatus("session.ready");
-                setBusy(false);
-                connectEventStream(sid);
-                setView("manual");
-              }}
-              onCancel={() => setView("home")}
-            />
-          </SectionCard>
+          <header className="cpb-page-header">
+            <h1 className="cpb-page-title">Design your panel</h1>
+            <p className="cpb-page-subtitle">
+              Name the team, describe three experts, and launch them into a session.
+            </p>
+          </header>
+
+          {error && (
+            <div data-testid="error-banner" className="poe-error" style={{ maxWidth: "48rem", width: "100%", margin: "0 auto 1rem" }}>
+              <span>{error}</span>
+              <button className="poe-error-dismiss" onClick={() => setError(null)}>✕</button>
+            </div>
+          )}
+
+          <CustomPanelBuilder
+            onLaunch={(sid, pid, personaIds) => {
+              setPanelId(pid);
+              setSessionId(sid);
+              setSelectedPersonaIds(personaIds);
+              setMessages([]);
+              setMediatorStatus("session.ready");
+              setBusy(false);
+              connectEventStream(sid);
+              setView("manual");
+            }}
+            onCancel={() => setView("home")}
+          />
         </div>
       </main>
     );
@@ -424,16 +430,22 @@ export default function HomePage() {
             </button>
           ))}
 
-          <button className="preset-card preset-card--custom" onClick={() => setView("custom")}>
-            <span className="preset-emoji">✦</span>
-            <h3 className="preset-name">Build Your Own</h3>
-            <p className="preset-desc">Design a custom panel with AI-suggested expert voices</p>
-            <ul className="preset-experts">
-              <li>Any 3 experts</li>
-              <li>AI persona ideas</li>
-              <li>Your topic</li>
-            </ul>
-            <span className="preset-cta">Customise →</span>
+          <button
+            data-testid="start-custom"
+            className="preset-card preset-card--custom"
+            onClick={() => setView("custom")}
+          >
+            <div className="preset-card-custom-inner">
+              <span className="preset-card-custom-badge">New</span>
+              <h3 className="preset-card-custom-title">Build Your Panel</h3>
+              <p className="preset-card-custom-desc">
+                Walk through a quick wizard to name your experts and give them personalities.
+                AI suggests persona voices based on your topic.
+              </p>
+              <span className="preset-card-custom-cta">
+                Start custom session →
+              </span>
+            </div>
           </button>
 
           <button className="preset-card preset-card--manual" onClick={() => setView("manual")}>

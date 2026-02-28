@@ -1,29 +1,49 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type VoiceSuggestion } from "@poe/contracts";
-import { suggestVoice, suggestPanel, upsertPersona, createPanel, createSession, listPersonas } from "../lib/api";
+import {
+  createPanel,
+  createSession,
+  listPersonas,
+  suggestPanel,
+  suggestVoice,
+  upsertPersona,
+} from "../lib/api";
 
 interface ExpertSlot {
+  id: string;
   name: string;
   voice: string;
 }
-
-const DEFAULT_SLOTS: ExpertSlot[] = [
-  { name: "Visionary Strategist", voice: "Sees the 10-year arc that others miss. Synthesises trends into bold conviction. Speaks in vivid futures." },
-  { name: "Pragmatic Builder", voice: "Asks 'does this ship?' Cuts through abstraction to constraints, trade-offs, and what works in production." },
-  { name: "Trusted Challenger", voice: "Steelmans the opposing view with rigour. Surfaces uncomfortable truths others avoid saying out loud." },
-];
 
 interface Props {
   onLaunch: (sessionId: string, panelId: string, personaIds: string[]) => void;
   onCancel: () => void;
 }
 
+const TEMPLATE_SLOTS: ExpertSlot[] = [
+  {
+    id: "expert-1",
+    name: "Visionary Strategist",
+    voice: "Sees the 10-year arc others miss. Synthesises trends into bold conviction. Speaks in vivid futures.",
+  },
+  {
+    id: "expert-2",
+    name: "Pragmatic Builder",
+    voice: "Asks 'does this ship?' Cuts abstraction to constraints, trade-offs, and what works in production.",
+  },
+  {
+    id: "expert-3",
+    name: "Trusted Challenger",
+    voice: "Steelmans the opposing view with rigour. Surfaces uncomfortable truths others avoid saying out loud.",
+  },
+];
+
 export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
-  const [step, setStep] = useState<0 | 1>(0);
+  const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");
-  const [slots, setSlots] = useState<ExpertSlot[]>(DEFAULT_SLOTS.map((s) => ({ ...s })));
+  const [slots, setSlots] = useState<ExpertSlot[]>(TEMPLATE_SLOTS.map((s) => ({ ...s })));
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<VoiceSuggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -32,8 +52,37 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null);
   const cacheRef = useRef<Record<string, VoiceSuggestion[]>>({});
 
-  function updateSlot(index: number, field: keyof ExpertSlot, value: string) {
+  const totalSteps = 2;
+  const progress = ((step + 1) / totalSteps) * 100;
+
+  // Lock body scroll when picker is open
+  useEffect(() => {
+    if (pickerSlot === null) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [pickerSlot]);
+
+  function resetDraft() {
+    setSlots(TEMPLATE_SLOTS.map((s) => ({ ...s })));
+    setTitle("");
+    setStep(0);
+    setError(null);
+  }
+
+  function updateSlot(index: number, field: "name" | "voice", value: string) {
     setSlots((prev) => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
+  }
+
+  function resetSlot(index: number) {
+    const defaults = TEMPLATE_SLOTS[index];
+    setSlots((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, name: defaults.name, voice: defaults.voice } : s
+      )
+    );
   }
 
   async function openPicker(slotIndex: number) {
@@ -49,22 +98,36 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
     }
 
     try {
-      const resp = await suggestVoice({ topic: title || "Expert panel", experts: slots, slot_index: slotIndex });
+      const resp = await suggestVoice({
+        topic: title || "Expert panel",
+        experts: slots,
+        slot_index: slotIndex,
+      });
       cacheRef.current[cacheKey] = resp.suggestions;
       setSuggestions(resp.suggestions);
     } catch {
-      // Use static fallbacks — they'll come from the API fallback path
       setSuggestions([]);
     } finally {
       setLoadingSuggestions(false);
     }
   }
 
+  async function refreshSuggestions() {
+    if (pickerSlot === null) return;
+    const cacheKey = JSON.stringify({
+      title,
+      slots: slots.map((s) => s.name),
+      slotIndex: pickerSlot,
+    });
+    delete cacheRef.current[cacheKey];
+    await openPicker(pickerSlot);
+  }
+
   function applySuggestion(s: VoiceSuggestion) {
     if (pickerSlot === null) return;
     setSlots((prev) =>
       prev.map((slot, i) =>
-        i === pickerSlot ? { name: s.label, voice: s.voice } : slot
+        i === pickerSlot ? { ...slot, name: s.label, voice: s.voice } : slot
       )
     );
     setPickerSlot(null);
@@ -79,7 +142,6 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
     setError(null);
     try {
       const resp = await suggestPanel({ topic: title });
-      // Load full personas so we can fill the slots
       const all = await listPersonas();
       const chosen = resp.suggested_persona_ids
         .map((id) => all.find((p) => p.id === id))
@@ -90,14 +152,13 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
         setError("AI couldn't find matching experts. Try a more specific topic.");
         return;
       }
-
       setSlots(
-        chosen.map((p) => ({
+        chosen.map((p, i) => ({
+          id: `expert-${i + 1}`,
           name: p!.name,
           voice: p!.style || p!.identity || "",
         }))
       );
-      if (!title || title === "") setTitle(resp.suggested_name);
     } catch {
       setError("AI panel suggestion failed. You can fill in experts manually.");
     } finally {
@@ -105,13 +166,13 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
     }
   }
 
-  function validateAndPreview() {
+  function goNext() {
+    setError(null);
     const invalid = slots.find((s) => !s.name.trim() || !s.voice.trim());
     if (invalid) {
-      setError("All experts need a name and voice before previewing.");
+      setError("Give each expert a name and a voice before previewing.");
       return;
     }
-    setError(null);
     setStep(1);
   }
 
@@ -119,7 +180,6 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
     setLaunching(true);
     setError(null);
     try {
-      // Upsert each custom expert as a Persona
       const ts = Date.now();
       const personaIds: string[] = [];
       for (let i = 0; i < slots.length; i++) {
@@ -147,7 +207,6 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
         persona_ids: personaIds,
         mode: "scatter_gather",
       });
-
       const session = await createSession({ panel_id: panel.id });
       onLaunch(session.id, panel.id, personaIds);
     } catch (e: unknown) {
@@ -157,131 +216,207 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
   }
 
   return (
-    <div className="custom-builder">
-      {/* Header */}
-      <div className="builder-header">
-        <button className="builder-back-btn" onClick={onCancel}>← Back</button>
-        <div className="builder-steps">
-          <span className={`builder-step ${step === 0 ? "active" : "done"}`}>1 Curate</span>
-          <span className="builder-step-sep">→</span>
-          <span className={`builder-step ${step === 1 ? "active" : ""}`}>2 Preview</span>
+    <div className="cpb-root">
+      {/* Progress bar */}
+      <div className="cpb-progress-track">
+        <div className="cpb-progress-bar" style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className="cpb-step-row">
+        <span className="cpb-step-label">Step {step + 1} of {totalSteps}</span>
+        <button className="cpb-reset-btn" onClick={resetDraft} disabled={launching}>
+          Reset draft
+        </button>
+      </div>
+
+      <div className="cpb-card">
+        {/* ── Step 0: Curate ── */}
+        {step === 0 && (
+          <div>
+            <h2 className="cpb-heading">Curate your panel</h2>
+            <p className="cpb-subheading">
+              Give each seat a name and voice. Tap "Persona ideas" for AI suggestions.
+            </p>
+
+            <div className="cpb-title-row">
+              <div className="cpb-field" style={{ flex: 1 }}>
+                <label className="cpb-label">Panel title (optional)</label>
+                <input
+                  className="cpb-input"
+                  placeholder="e.g. Midnight Shipping Council"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={60}
+                />
+                <span className="cpb-hint">Blank is fine — we'll fallback to "Custom Panel".</span>
+              </div>
+              <button
+                className="cpb-ai-btn"
+                onClick={handleAISuggestPanel}
+                disabled={suggestingPanel}
+                title="AI picks experts from your library for this topic"
+              >
+                {suggestingPanel ? "Thinking…" : "✦ AI Suggest"}
+              </button>
+            </div>
+
+            <div className="cpb-slots">
+              {slots.map((slot, i) => (
+                <div key={slot.id} className="cpb-slot-card">
+                  <div className="cpb-slot-top">
+                    <div>
+                      <span className="cpb-slot-tag">Expert {i + 1}</span>
+                      <p className="cpb-slot-preview">
+                        {slot.name.trim() || "Name this expert"}
+                      </p>
+                    </div>
+                    <div className="cpb-slot-controls">
+                      <button className="cpb-reset-slot-btn" onClick={() => resetSlot(i)}>
+                        Reset
+                      </button>
+                      <button className="cpb-ideas-btn" onClick={() => openPicker(i)}>
+                        Persona ideas
+                      </button>
+                    </div>
+                  </div>
+
+                  <label className="cpb-field-label">Name</label>
+                  <input
+                    className="cpb-input"
+                    placeholder="e.g. Rihanna"
+                    value={slot.name}
+                    onChange={(e) => updateSlot(i, "name", e.target.value)}
+                    maxLength={60}
+                  />
+
+                  <label className="cpb-field-label">Signature voice</label>
+                  <textarea
+                    className="cpb-voice-textarea"
+                    placeholder="What perspective does this expert bring?"
+                    rows={4}
+                    value={slot.voice}
+                    onChange={(e) => updateSlot(i, "voice", e.target.value)}
+                    maxLength={360}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 1: Preview ── */}
+        {step === 1 && (
+          <div>
+            <h2 className="cpb-heading">Preview your panel</h2>
+            <p className="cpb-subheading">
+              One last look before launch — hop back and tweak anything.
+            </p>
+
+            <div className="cpb-preview-title-card">
+              <h3 className="cpb-preview-panel-name">{title.trim() || "Custom Panel"}</h3>
+              <p className="cpb-preview-goal">
+                Keep the conversation on the outcomes that matter most.
+              </p>
+            </div>
+
+            <div className="cpb-preview-experts">
+              {slots.map((slot, i) => (
+                <div key={i} className="cpb-preview-expert-card">
+                  <p className="cpb-preview-expert-name">{slot.name.trim()}</p>
+                  <p className="cpb-preview-expert-voice">{slot.voice.trim()}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <div className="cpb-error">{error}</div>}
+
+        <div className="cpb-nav">
+          <button
+            className="cpb-back-btn"
+            onClick={
+              step === 0
+                ? onCancel
+                : () => {
+                    setError(null);
+                    setStep(0);
+                  }
+            }
+            disabled={launching}
+          >
+            {step === 0 ? "Cancel" : "← Back"}
+          </button>
+          {step === 0 && (
+            <button className="cpb-next-btn" onClick={goNext}>
+              Preview panel →
+            </button>
+          )}
+          {step === 1 && (
+            <button className="cpb-next-btn" onClick={handleLaunch} disabled={launching}>
+              {launching ? "Launching…" : "Launch panel"}
+            </button>
+          )}
         </div>
       </div>
 
-      {error && (
-        <div className="builder-error">
-          {error}
-          <button onClick={() => setError(null)}>✕</button>
-        </div>
-      )}
-
-      {step === 0 && (
-        <div className="builder-curate">
-          <div className="builder-title-row">
-            <div className="config-field" style={{ flex: 1 }}>
-              <label className="config-label">Panel Topic / Title</label>
-              <input
-                className="config-input"
-                placeholder="e.g. The future of AI regulation"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-            <button
-              className="builder-ai-btn"
-              onClick={handleAISuggestPanel}
-              disabled={suggestingPanel}
-              title="Let AI pick the best experts from your library for this topic"
-            >
-              {suggestingPanel ? "Thinking…" : "✦ AI Suggest Panel"}
-            </button>
-          </div>
-
-          <div className="builder-slots">
-            {slots.map((slot, i) => (
-              <div key={i} className="builder-slot">
-                <div className="builder-slot-header">
-                  <span className="builder-slot-num">Expert {i + 1}</span>
-                  <button
-                    className="builder-ideas-btn"
-                    onClick={() => openPicker(i)}
-                  >
-                    ✦ Persona ideas
-                  </button>
-                </div>
-                <input
-                  className="config-input"
-                  placeholder="Expert name"
-                  value={slot.name}
-                  onChange={(e) => updateSlot(i, "name", e.target.value)}
-                />
-                <textarea
-                  className="builder-voice-input"
-                  placeholder="Signature voice — how they think and speak (≤200 chars)"
-                  maxLength={200}
-                  rows={3}
-                  value={slot.voice}
-                  onChange={(e) => updateSlot(i, "voice", e.target.value)}
-                />
-                <div className="builder-voice-count">{slot.voice.length}/200</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="builder-actions">
-            <button
-              className="builder-reset-btn"
-              onClick={() => { setSlots(DEFAULT_SLOTS.map((s) => ({ ...s }))); setTitle(""); }}
-            >
-              Reset
-            </button>
-            <button className="create-button" onClick={validateAndPreview}>
-              Preview panel →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 1 && (
-        <div className="builder-preview">
-          <h3 className="builder-preview-title">{title || "Custom Panel"}</h3>
-          <p className="builder-preview-goal">Keep the conversation on the outcomes that matter most.</p>
-          <div className="builder-preview-experts">
-            {slots.map((slot, i) => (
-              <div key={i} className="builder-preview-expert">
-                <div className="builder-preview-expert-name">{slot.name}</div>
-                <div className="builder-preview-expert-voice">{slot.voice}</div>
-              </div>
-            ))}
-          </div>
-          <div className="builder-actions">
-            <button className="builder-reset-btn" onClick={() => setStep(0)}>← Edit</button>
-            <button className="create-button" onClick={handleLaunch} disabled={launching}>
-              {launching ? "Launching…" : "Launch panel"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Persona picker modal */}
+      {/* ── Persona picker modal ── */}
       {pickerSlot !== null && (
-        <div className="builder-modal-overlay" onClick={() => setPickerSlot(null)}>
-          <div className="builder-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="builder-modal-header">
-              <h4>Voice ideas for Expert {pickerSlot + 1}</h4>
-              <button onClick={() => setPickerSlot(null)}>✕</button>
+        <div
+          className="cpb-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPickerSlot(null)}
+        >
+          <div className="cpb-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cpb-modal-header">
+              <div>
+                <h3 className="cpb-modal-title">
+                  Pick a persona for Expert {pickerSlot + 1}
+                </h3>
+                <p className="cpb-modal-subtitle">
+                  Select one to fill the slot, or refresh for new ideas.
+                </p>
+              </div>
+              <button
+                className="cpb-modal-close"
+                onClick={() => setPickerSlot(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
             </div>
+
+            <div className="cpb-modal-toolbar">
+              <button
+                className="cpb-refresh-btn"
+                onClick={refreshSuggestions}
+                disabled={loadingSuggestions}
+              >
+                {loadingSuggestions ? "Loading…" : "↻ Refresh suggestions"}
+              </button>
+            </div>
+
             {loadingSuggestions ? (
-              <div className="builder-modal-loading">Generating ideas…</div>
+              <p className="cpb-modal-loading">Generating ideas…</p>
             ) : suggestions.length === 0 ? (
-              <div className="builder-modal-loading">No suggestions available. Try again.</div>
+              <p className="cpb-modal-loading">
+                No suggestions yet. Tap "Refresh suggestions" to generate ideas.
+              </p>
             ) : (
-              <div className="builder-modal-suggestions">
+              <div className="cpb-suggestions-grid">
                 {suggestions.map((s, i) => (
-                  <button key={i} className="builder-suggestion" onClick={() => applySuggestion(s)}>
-                    <div className="builder-suggestion-label">{s.label}</div>
-                    <div className="builder-suggestion-origin">{s.origin}</div>
-                    <div className="builder-suggestion-voice">{s.voice}</div>
+                  <button
+                    key={i}
+                    className="cpb-suggestion-card"
+                    onClick={() => applySuggestion(s)}
+                  >
+                    <span className="cpb-suggestion-origin">{s.origin}</span>
+                    <p className="cpb-suggestion-label">{s.label}</p>
+                    <p className="cpb-suggestion-voice">{s.voice}</p>
+                    <span className="cpb-suggestion-add">
+                      Add to Expert {pickerSlot + 1} →
+                    </span>
                   </button>
                 ))}
               </div>
