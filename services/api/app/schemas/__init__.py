@@ -49,14 +49,27 @@ class PostMessageRequest(BaseModel):
     mention_persona_id: str | None = None
 
 
+class StartCycleResponse(BaseModel):
+    cycle_id: str
+    session_id: str
+    user_message_id: str
+    status: Literal["running"]
+
+
 class ConversationMessageResponse(BaseModel):
     id: str
     session_id: str
     role: Literal["user", "assistant", "mediator", "system"]
+    speaker_role: Literal["user", "expert", "mediator", "system"] = "expert"
     author_id: str
     content: str
     argument_tag: Literal["CLAIM", "SUPPORT", "REBUT", "OTHER"]
-    reply_to: str | None = None
+    cycle_id: str | None = None
+    turn_index: int | None = None
+    reply_to_message_id: str | None = None
+    directed_to_persona_id: str | None = None
+    mentioned_persona_ids: list[str] = Field(default_factory=list)
+    reply_to: str | None = None  # legacy alias retained for storage compatibility
     created_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
 

@@ -321,6 +321,12 @@ button {
   font-size: 0.84rem;
 }
 
+.status-hint {
+  margin: 6px 0 0;
+  color: var(--ink-500);
+  font-size: 0.78rem;
+}
+
 .status-chips {
   display: flex;
   flex-wrap: wrap;
@@ -364,6 +370,34 @@ button {
   scrollbar-color: rgba(62, 91, 131, 0.45) transparent;
 }
 
+.cycle-group {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: rgba(245, 250, 255, 0.72);
+}
+
+.cycle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cycle-title {
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-700);
+}
+
+.cycle-id {
+  font-size: 0.72rem;
+  color: var(--ink-500);
+}
+
 .message-bubble {
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -404,6 +438,12 @@ button {
   white-space: pre-wrap;
   line-height: 1.42;
   color: #172845;
+}
+
+.message-subtitle {
+  font-size: 0.7rem;
+  color: var(--ink-500);
+  margin-bottom: 6px;
 }
 
 .stream-cursor {

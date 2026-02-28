@@ -1,11 +1,15 @@
 import {
-  type ConversationMessage,
   type CreatePanelRequest,
   type CreateSessionRequest,
   type Panel,
   type PersonaSchema,
   type PostMessageRequest,
   type Session,
+  type StartCycleResponse,
+  type SuggestVoiceRequest,
+  type SuggestVoiceResponse,
+  type SuggestPanelRequest,
+  type SuggestPanelResponse,
 } from "@poe/contracts";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -52,8 +56,22 @@ export function createSession(payload: CreateSessionRequest): Promise<Session> {
   return json<Session>(`${API_BASE}/v1/sessions`, { method: "POST", body: JSON.stringify(payload) });
 }
 
-export function postMessage(sessionId: string, payload: PostMessageRequest): Promise<ConversationMessage> {
-  return json<ConversationMessage>(`${API_BASE}/v1/sessions/${sessionId}/messages`, {
+export function postMessage(sessionId: string, payload: PostMessageRequest): Promise<StartCycleResponse> {
+  return json<StartCycleResponse>(`${API_BASE}/v1/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function suggestVoice(payload: SuggestVoiceRequest): Promise<SuggestVoiceResponse> {
+  return json<SuggestVoiceResponse>(`${API_BASE}/v1/personas/suggest-voice`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function suggestPanel(payload: SuggestPanelRequest): Promise<SuggestPanelResponse> {
+  return json<SuggestPanelResponse>(`${API_BASE}/v1/panels/suggest`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

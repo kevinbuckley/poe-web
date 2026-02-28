@@ -70,6 +70,19 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class ConversationCycle(Base):
+    __tablename__ = "conversation_cycles"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"))
+    user_message_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(24), default="running")
+    turn_budget: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    turns_used: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Message(Base):
     __tablename__ = "messages"
 
@@ -79,6 +92,15 @@ class Message(Base):
     author_id: Mapped[str] = mapped_column(String(64))
     content: Mapped[str] = mapped_column(Text)
     argument_tag: Mapped[str] = mapped_column(String(20), default="OTHER")
+    cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversation_cycles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    turn_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reply_to_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    directed_to_persona_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mentioned_persona_ids: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]")
+    speaker_role: Mapped[str] = mapped_column(String(20), default="expert", server_default="expert")
     reply_to: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -4,6 +4,7 @@ export function MessageBubble(props: {
   author: string;
   content: string;
   tag: string;
+  subtitle?: string;
   mine?: boolean;
   streaming?: boolean;
 }) {
@@ -19,6 +20,7 @@ export function MessageBubble(props: {
         <strong className="message-author">{props.author}</strong>
         <span className="message-tag">{props.tag}</span>
       </div>
+      {props.subtitle ? <div className="message-subtitle">{props.subtitle}</div> : null}
       <div data-testid="message-content" className="message-content">
         {props.content}
         {props.streaming ? <span className="stream-cursor">▌</span> : null}
