@@ -72,19 +72,28 @@ def _build_expert_prompt_from_schema(schema: dict, panelist_ids: list[str]) -> s
 
     parts.append(
         "Panel behavior rules: state your stance clearly; challenge weak claims when needed; "
-        "address peers directly using @persona_id when rebutting; keep tone measured and professional; "
-        "ask questions only when critical information is missing; avoid routine question endings."
+        "address peers directly using @persona_id when rebutting or building on their point; "
+        "keep tone measured and professional; "
+        "use @user to pose a direct question to the human when their input or clarification is essential; "
+        "avoid routine questions — only ask when critical information is genuinely missing."
     )
     if panelist_ids:
-        parts.append("Current panelist IDs: " + ", ".join(panelist_ids))
+        parts.append("Peer panelist IDs (address them by @id when engaging their argument): " + ", ".join(panelist_ids))
     return " ".join(parts)
 
 
-def _build_mediator_synthesis_prompt() -> str:
+def _build_mediator_synthesis_prompt(panelist_names: dict[str, str] | None = None) -> str:
+    name_hint = ""
+    if panelist_names:
+        name_hint = (
+            " Refer to each expert by their first name (not their ID) when attributing a point."
+            " Name mapping: " + "; ".join(f"{pid} = {name}" for pid, name in panelist_names.items()) + "."
+        )
     return (
         "You are the panel mediator. Produce a concise synthesis in 2-4 sentences. "
-        "Include one agreement point and one disagreement point. "
-        "Name experts using @persona_id where useful."
+        "Highlight where panelists agreed, where they diverged, and surface the sharpest unresolved tension. "
+        f"Name experts by first name when attributing their specific argument.{name_hint} "
+        "If the panel needs more context from the human, end with a direct question prefixed with @user."
     )
 
 
@@ -285,6 +294,15 @@ class OrchestratorService:
             return None
 
         panel_persona_ids = self._list_panel_persona_ids(db, session_id)
+        # Build id→name map for synthesis prompts (graceful fallback to id)
+        panelist_names: dict[str, str] = {}
+        for pid in panel_persona_ids:
+            row = db.get(Persona, pid)
+            if row and row.schema_json:
+                panelist_names[pid] = row.schema_json.get("name", pid)
+            else:
+                panelist_names[pid] = pid
+
         if not panel_persona_ids:
             await event_hub.publish(
                 session_id,
@@ -395,13 +413,34 @@ class OrchestratorService:
                     )
 
                 history = self._get_conversation_history(db, session_id)
+
+                # Build directive: include what peers already said in THIS cycle so
+                # each expert must engage with their colleagues rather than independently re-answer.
                 directive = sanitized_user_text
+                cycle_so_far = [
+                    m for m in self._get_cycle_messages(db, cycle_id)
+                    if m.speaker_role == "expert" and m.author_id != speaker_id
+                ]
+                if cycle_so_far:
+                    peer_lines = "\n\n".join(
+                        f"@{m.author_id}: {m.content[:500]}"
+                        for m in cycle_so_far
+                    )
+                    directive += (
+                        "\n\n---\nYour fellow panelists have already responded. "
+                        "Do NOT repeat or summarise what they said. "
+                        "Instead, directly engage: agree with specific reasons, rebut with evidence, "
+                        "or add a genuinely distinct angle they missed. "
+                        "Reference them by @id when responding to their argument:\n\n"
+                        + peer_lines
+                        + "\n---"
+                    )
                 if plan.required_address_targets:
                     directive += (
-                        "\n\nThe mediator requests that you address these peers if relevant: "
+                        "\n\nMake sure to address: "
                         + ", ".join(f"@{pid}" for pid in plan.required_address_targets)
                     )
-                directive += "\n\nWrite 4-8 sentences with one concrete claim and one direct challenge where warranted."
+                directive += "\n\nWrite 4-8 sentences. Include one concrete claim and one direct engagement with a peer's argument."
 
                 response_text, prompt_tokens, completion_tokens = await asyncio.to_thread(
                     self._generate,
@@ -519,7 +558,7 @@ class OrchestratorService:
 
             synthesis_text, prompt_tokens, completion_tokens = await asyncio.to_thread(
                 self._generate,
-                _build_mediator_synthesis_prompt(),
+                _build_mediator_synthesis_prompt(panelist_names),
                 synthesis_history,
                 synthesis_input,
                 temperature=0.35,
