@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  web-and-packages:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: poe-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: poe-platform/services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run mypy app
+
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: poe-platform/services/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run mypy worker

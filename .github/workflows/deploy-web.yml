@@ -1,0 +1,20 @@
+name: Deploy Web (Vercel)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: poe-platform
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trigger Vercel Deploy Hook
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL not set" >&2
+            exit 1
+          fi
+          curl -X POST "$VERCEL_DEPLOY_HOOK_URL"

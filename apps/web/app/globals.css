@@ -1,0 +1,18 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  background: linear-gradient(180deg, #fafaf9 0%, #f4f4f5 100%);
+  color: #18181b;
+}
+
+button {
+  cursor: pointer;
+}

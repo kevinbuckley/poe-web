@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: poe-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: poe
+      POSTGRES_PASSWORD: poe
+      POSTGRES_DB: poe
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: poe-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: poe-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@poe.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
