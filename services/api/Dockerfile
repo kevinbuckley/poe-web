@@ -4,10 +4,11 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml README.md ./
-COPY app ./app
-COPY alembic.ini ./
-COPY alembic ./alembic
+# Paths are relative to repo root (Railway build context)
+COPY services/api/pyproject.toml services/api/README.md ./
+COPY services/api/app ./app
+COPY services/api/alembic.ini ./
+COPY services/api/alembic ./alembic
 
 RUN uv pip install --system .
 
