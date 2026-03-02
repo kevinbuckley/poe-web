@@ -131,12 +131,33 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
   }
 
   function resetSlot(index: number) {
-    const defaults = TEMPLATE_SLOTS[index];
+    const defaults = TEMPLATE_SLOTS[index] ?? { name: "", voice: "" };
     setSlots((prev) =>
       prev.map((s, i) =>
         i === index ? { ...s, name: defaults.name, voice: defaults.voice } : s
       )
     );
+  }
+
+  function addSlot() {
+    if (slots.length >= 8) return;
+    setSlots((prev) => [
+      ...prev,
+      {
+        id: `expert-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: "",
+        voice: "",
+      },
+    ]);
+  }
+
+  function removeSlot(index: number) {
+    if (slots.length <= 1) return;
+    setSlots((prev) => prev.filter((_, i) => i !== index));
+    if (pickerSlot !== null) {
+      if (pickerSlot === index) setPickerSlot(null);
+      else if (pickerSlot > index) setPickerSlot(pickerSlot - 1);
+    }
   }
 
   async function openPicker(slotIndex: number) {
@@ -342,6 +363,17 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
                       </p>
                     </div>
                     <div className="cpb-slot-controls">
+                      {slots.length > 1 && (
+                        <button
+                          type="button"
+                          className="cpb-remove-slot-btn"
+                          onClick={() => removeSlot(i)}
+                          aria-label={`Remove expert ${i + 1}`}
+                          title="Remove expert"
+                        >
+                          Remove
+                        </button>
+                      )}
                       <button className="cpb-reset-slot-btn" onClick={() => resetSlot(i)}>
                         Reset
                       </button>
@@ -372,6 +404,16 @@ export function CustomPanelBuilder({ onLaunch, onCancel }: Props) {
                 </div>
               ))}
             </div>
+
+            {slots.length < 8 && (
+              <button
+                type="button"
+                className="cpb-add-slot-btn"
+                onClick={addSlot}
+              >
+                + Add expert
+              </button>
+            )}
           </div>
         )}
 

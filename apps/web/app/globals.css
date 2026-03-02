@@ -1252,6 +1252,19 @@ button {
 
 .cpb-slot-controls { display: flex; gap: 0.4rem; flex-shrink: 0; }
 
+.cpb-remove-slot-btn {
+  background: none;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.cpb-remove-slot-btn:hover { border-color: var(--ink-400); color: var(--ink-700); }
+
 .cpb-reset-slot-btn {
   background: none;
   border: 1.5px solid var(--line);
@@ -1301,6 +1314,25 @@ button {
   transition: border-color 0.12s;
 }
 .cpb-voice-textarea:focus { outline: none; border-color: var(--accent); }
+
+.cpb-add-slot-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.cpb-add-slot-btn:hover {
+  border-color: var(--ink-400);
+  color: var(--ink-700);
+  background: rgba(0, 0, 0, 0.02);
+}
 
 /* Navigation bar */
 .cpb-nav {
